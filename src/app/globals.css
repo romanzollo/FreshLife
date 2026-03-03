@@ -1,71 +1,73 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* 
   Глобальные CSS‑переменные для светлой и тёмной темы.
   Tailwind 4 читает их через @theme inline ниже.
 */
 :root {
-  --background: #f8faf9;
-  --foreground: #1e293b;
-  --card-bg: #ffffff;
-  --card-border: #e2e8f0;
-  --accent: #0d9488;
-  --accent-soft: #ccfbf1;
-  --accent-hover: #0f766e;
-  --shadow-soft: 0 4px 20px -2px rgb(0 0 0 / 0.06), 0 2px 8px -2px rgb(0 0 0 / 0.04);
-  --shadow-hover: 0 12px 40px -4px rgb(0 0 0 / 0.08), 0 4px 12px -2px rgb(0 0 0 / 0.04);
-  --radius: 16px;
-  --radius-lg: 20px;
+    --background: #f8faf9;
+    --foreground: #1e293b;
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
+    --accent: #0d9488;
+    --accent-soft: #ccfbf1;
+    --accent-hover: #0f766e;
+    --shadow-soft:
+        0 4px 20px -2px rgb(0 0 0 / 0.06), 0 2px 8px -2px rgb(0 0 0 / 0.04);
+    --shadow-hover:
+        0 12px 40px -4px rgb(0 0 0 / 0.08), 0 4px 12px -2px rgb(0 0 0 / 0.04);
+    --radius: 16px;
+    --radius-lg: 20px;
 }
 
 /* Прокидываем переменные в Tailwind‑тему (Tailwind v4, режим @theme inline). */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
 }
 
 /* Тёмная тема подстраивается под системную настройку браузера. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f1419;
-    --foreground: #e2e8f0;
-    --card-bg: #1e293b;
-    --card-border: #334155;
-    --accent: #2dd4bf;
-    --accent-soft: #134e4a;
-    --accent-hover: #5eead4;
-    --shadow-soft: 0 4px 20px -2px rgb(0 0 0 / 0.3);
-    --shadow-hover: 0 12px 40px -4px rgb(0 0 0 / 0.4);
-  }
+    :root {
+        --background: #0f1419;
+        --foreground: #e2e8f0;
+        --card-bg: #1e293b;
+        --card-border: #334155;
+        --accent: #2dd4bf;
+        --accent-soft: #134e4a;
+        --accent-hover: #5eead4;
+        --shadow-soft: 0 4px 20px -2px rgb(0 0 0 / 0.3);
+        --shadow-hover: 0 12px 40px -4px rgb(0 0 0 / 0.4);
+    }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 /* Мягкие скроллбары */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+    width: 8px;
+    height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+    background: #cbd5e1;
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+    background: #94a3b8;
 }
 
 /* Плавные переходы для интерактивных элементов */
@@ -74,20 +76,20 @@ a,
 input,
 select,
 textarea {
-  transition: all 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .animate-fade-in {
-  animation: fade-in 0.4s ease-out forwards;
+    animation: fade-in 0.4s ease-out forwards;
 }

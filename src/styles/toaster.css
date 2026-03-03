@@ -1,0 +1,39 @@
+/* styles/toaster.css — МАКСИМАЛЬНЫЙ ПРИОРИТЕТ */
+[data-rht-toaster] {
+    top: 80px !important;
+    right: 24px !important;
+    left: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    max-width: 700px !important;
+}
+
+[data-rht-toaster] {
+    top: 80px !important;
+    left: 50% !important; /* Центр по горизонтали */
+    right: auto !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important; /* Точное центрирование */
+    width: auto !important;
+    max-width: 700px !important;
+    pointer-events: none;
+}
+
+[data-rht-toast] span {
+    color: #ffffff !important;
+    white-space: nowrap !important;
+}
+
+[data-rht-toast] button {
+    color: #ffffff !important;
+}
+
+.toast-success,
+[data-rht-toast][data-type='success'] {
+    border-left: 4px solid #2dd4bf !important;
+}
+
+.toast-error,
+[data-rht-toast][data-type='error'] {
+    border-left: 4px solid #fb7185 !important;
+}
