@@ -1,0 +1,81 @@
+// Prisma schema for Ozon Fresh - доставка продуктов питания
+// SQLite для простоты запуска на любом компьютере
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Категория товара, например "Фрукты и овощи" или "Молочные продукты".
+// Вынесена в отдельную сущность, чтобы удобно фильтровать и переиспользовать.
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  products  Product[]
+}
+
+// Товар в каталоге.
+// Здесь хранятся только данные самого товара, без информации о заказах.
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  imageUrl    String?
+
+  // Связь с категорией: один товар принадлежит одной категории.
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  // Остатки и единицы измерения помогают красивее отображать товары на витрине.
+  inStock     Int      @default(100)
+  unit        String   @default("шт") // шт, кг, л
+
+  createdAt   DateTime @default(now())
+  orderItems  OrderItem[]
+
+  // Индекс по категории и дате создания — самые частые сценарии выборки на витрине.
+  @@index([categoryId])
+  @@index([createdAt])
+}
+
+// Заказ пользователя (упрощённый вариант без аутентификации).
+// В реальном проекте сюда добавляется связь с пользователем.
+model Order {
+  id           String      @id @default(cuid())
+  customerName String
+  address      String
+  phone        String
+
+  // Статус заказа хранится строкой для простоты.
+  // При развитии проекта можно вынести в enum.
+  status      String      @default("pending") // pending, confirmed, delivered, cancelled
+  totalAmount Float
+  createdAt   DateTime    @default(now())
+  items       OrderItem[]
+
+  // Индекс по дате — удобно для сортировки "сначала новые".
+  @@index([createdAt])
+}
+
+// Позиция в заказе: конкретный товар с количеством и ценой на момент покупки.
+model OrderItem {
+  id        String  @id @default(cuid())
+
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity  Int
+  price     Float
+
+  // Часто ищем все позиции по заказу.
+  @@index([orderId])
+}

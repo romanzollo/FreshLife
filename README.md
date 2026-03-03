@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ozon Fresh — Веб-приложение доставки продуктов питания
 
-## Getting Started
+Дипломный проект: веб-приложение для управления каталогом продуктов и доставкой (по аналогии с Ozon Fresh).
 
-First, run the development server:
+## Стек технологий
+
+- **Next.js 16** — React-фреймворк
+- **TypeScript** — типизация
+- **Prisma** — ORM для работы с БД
+- **SQLite** — база данных (файл `prisma/dev.db`, не требует установки СУБД)
+- **TailwindCSS** — стилизация
+
+## Требования
+
+- **Node.js** 18+ (рекомендуется 20.x)
+- **npm** 9+
+
+## Запуск на компьютере проверяющего
+
+### Шаг 1. Установка зависимостей
+
+```bash
+npm install
+```
+
+При установке автоматически выполнится `prisma generate` (генерация клиента Prisma).
+
+### Шаг 2. Создание базы данных и заполнение тестовыми данными
+
+```bash
+npm run db:push
+npm run db:seed
+```
+
+- `db:push` — создаёт файл БД `prisma/dev.db` и таблицы
+- `db:seed` — заполняет БД категориями и 15 товарами
+
+### Шаг 3. Запуск приложения
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Приложение будет доступно по адресу: **http://localhost:3000**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Шаг 4. Проверка работы
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Откройте в браузере: http://localhost:3000
+2. На главной странице — каталог товаров с фильтрацией по категории, поиском и сортировкой
+3. Перейдите в «Управление товарами» — добавление, редактирование и удаление товаров (CRUD)
 
-## Learn More
+## Скрипты
 
-To learn more about Next.js, take a look at the following resources:
+| Команда | Описание |
+|---------|----------|
+| `npm run dev` | Запуск в режиме разработки (localhost:3000) |
+| `npm run build` | Сборка для продакшена |
+| `npm run start` | Запуск собранного приложения |
+| `npm run db:push` | Применить схему Prisma к БД |
+| `npm run db:seed` | Заполнить БД тестовыми данными |
+| `npm run db:reset` | Сбросить БД и заново выполнить seed |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Структура проекта
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+OzonFresh/
+├── prisma/
+│   ├── schema.prisma   # Схема БД (Category, Product, Order, OrderItem)
+│   ├── seed.ts         # Скрипт заполнения тестовыми данными
+│   └── dev.db          # Файл SQLite (создаётся после db:push)
+├── src/
+│   ├── app/
+│   │   ├── api/        # API routes (products, categories)
+│   │   ├── admin/      # Страница управления товарами
+│   │   └── page.tsx    # Главная — каталог
+│   ├── components/     # React-компоненты
+│   └── lib/
+│       └── prisma.ts   # Singleton Prisma Client
+└── README.md
+```
 
-## Deploy on Vercel
+## Функциональность
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Каталог товаров** — список с карточками
+- **Фильтрация** — по категории, поиск по названию
+- **Сортировка** — по названию, цене, дате, наличию
+- **CRUD товаров** — добавление, редактирование, удаление
+- **Категории** — фрукты/овощи, молочные продукты, мясо, напитки, хлеб
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Важно для проверки
+
+Приложение работает **локально** на компьютере проверяющего. Хостинг не требуется. Достаточно:
+
+1. Установить Node.js (если ещё не установлен)
+2. Выполнить команды из раздела «Запуск на компьютере проверяющего»
+3. Открыть http://localhost:3000 в браузере
