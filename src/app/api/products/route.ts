@@ -1,14 +1,43 @@
+/**
+ * API-маршруты для коллекции товаров.
+ *
+ * GET  /api/products  — список товаров с фильтрацией, поиском и сортировкой
+ * POST /api/products  — создание нового товара
+ *
+ * Файл нарочно не разбит на несколько файлов, так как оба метода работают
+ * с одним и тем же ресурсом и используют общую логику парсинга/валидации.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Вспомогательные типы для явного описания структуры фильтров и тела запроса.
+// ─────────────────────────────────────────────────────────────────────────────
+// Типы
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Допустимые поля для сортировки товаров.
+ * Перечислены явно, чтобы нельзя было передать произвольное поле из БД.
+ */
+const ALLOWED_SORT_FIELDS = ["name", "price", "createdAt", "inStock"] as const;
+type SortField = (typeof ALLOWED_SORT_FIELDS)[number];
+
+/**
+ * Типизированный объект фильтров после парсинга query-параметров.
+ * Используется только внутри этого файла.
+ */
 interface ProductFilters {
   categoryId?: string;
   search?: string;
-  sortBy: "name" | "price" | "createdAt" | "inStock";
+  sortBy: SortField;
   sortOrder: "asc" | "desc";
 }
 
+/**
+ * Тело запроса для создания товара.
+ * Все поля — unknown, потому что данные приходят от клиента и до валидации
+ * мы не можем доверять их типам.
+ */
 interface CreateProductBody {
   name?: unknown;
   description?: unknown;
@@ -19,22 +48,41 @@ interface CreateProductBody {
   imageUrl?: unknown;
 }
 
-// Разбор query‑параметров в типизированный объект фильтров.
-function parseFiltersFromRequest(request: NextRequest): ProductFilters {
+// ─────────────────────────────────────────────────────────────────────────────
+// Вспомогательные функции
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Проверяет, является ли строка допустимым полем сортировки.
+ *
+ * Используем type-predicate вместо `as any`, чтобы TypeScript
+ * сужал тип после вызова этой функции — это безопасно и явно.
+ */
+function isValidSortField(value: string): value is SortField {
+  return (ALLOWED_SORT_FIELDS as readonly string[]).includes(value);
+}
+
+/**
+ * Разбирает query-параметры запроса в типизированный объект фильтров.
+ * Неизвестные или некорректные значения заменяются безопасными дефолтами.
+ */
+function parseFilters(request: NextRequest): ProductFilters {
   const { searchParams } = new URL(request.url);
 
   const sortByParam = searchParams.get("sortBy") ?? "name";
   const sortOrderParam = searchParams.get("sortOrder") ?? "asc";
 
-  const allowedSortFields = ["name", "price", "createdAt", "inStock"] as const;
-  const safeSortBy = allowedSortFields.includes(sortByParam as any)
-    ? (sortByParam as ProductFilters["sortBy"])
+  // Валидируем поле сортировки через type-guard (без as any)
+  const safeSortBy: SortField = isValidSortField(sortByParam)
+    ? sortByParam
     : "name";
 
-  const safeSortOrder: ProductFilters["sortOrder"] =
+  // Направление сортировки — только "asc" или "desc", по умолчанию "asc"
+  const safeSortOrder: "asc" | "desc" =
     sortOrderParam === "desc" ? "desc" : "asc";
 
   return {
+    // Если параметр не передан — undefined (фильтр не применяется)
     categoryId: searchParams.get("categoryId") ?? undefined,
     search: searchParams.get("search") ?? undefined,
     sortBy: safeSortBy,
@@ -42,29 +90,48 @@ function parseFiltersFromRequest(request: NextRequest): ProductFilters {
   };
 }
 
-// GET /api/products — список товаров с фильтрацией и сортировкой.
+// ─────────────────────────────────────────────────────────────────────────────
+// Обработчики маршрутов
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/products
+ *
+ * Возвращает список товаров. Поддерживает:
+ * - ?categoryId=<id>      фильтр по категории
+ * - ?search=<строка>      поиск по названию (регистронезависимый)
+ * - ?sortBy=<поле>        сортировка: name | price | createdAt | inStock
+ * - ?sortOrder=asc|desc   направление сортировки
+ *
+ * Ответ: Product[] (каждый объект содержит вложенный объект category)
+ */
 export async function GET(request: NextRequest) {
   try {
-    const { categoryId, search, sortBy, sortOrder } = parseFiltersFromRequest(request);
+    const { categoryId, search, sortBy, sortOrder } = parseFilters(request);
 
-    const where: { categoryId?: string; name?: { contains: string; mode: "insensitive" } } =
-      {};
+    // Строим объект where динамически: добавляем только те условия,
+    // которые действительно переданы. Пустой where {} = все товары.
+    const where: {
+      categoryId?: string;
+      name?: { contains: string; mode: "insensitive" };
+    } = {};
 
-    // Фильтр по категории (используется при выборе категории в интерфейсе).
     if (categoryId) {
       where.categoryId = categoryId;
     }
 
-    // Поиск по названию, регистронезависимый.
     if (search) {
+      // mode: "insensitive" работает нативно в PostgreSQL.
+      // В SQLite Prisma игнорирует этот флаг, но LIKE всё равно
+      // нечувствителен к регистру для ASCII-символов.
       where.name = { contains: search, mode: "insensitive" };
     }
 
-    const orderBy = { [sortBy]: sortOrder } as const;
-
     const products = await prisma.product.findMany({
       where,
-      orderBy,
+      orderBy: { [sortBy]: sortOrder },
+      // include подгружает связанный объект category в каждый товар,
+      // чтобы фронтенд мог отображать название категории без дополнительного запроса.
       include: { category: true },
     });
 
@@ -78,13 +145,24 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/products — создание нового товара.
+/**
+ * POST /api/products
+ *
+ * Создаёт новый товар. Обязательные поля: name, categoryId, price.
+ * Необязательные: description, imageUrl, inStock (по умолчанию 100), unit (по умолчанию "шт").
+ *
+ * Ответ 201: созданный Product с вложенным объектом category
+ * Ответ 400: если валидация не прошла
+ */
 export async function POST(request: NextRequest) {
   try {
+    // Тип тела — unknown до валидации: мы не можем доверять клиентским данным
     const body = (await request.json()) as CreateProductBody;
-    const { name, description, price, categoryId, inStock, unit, imageUrl } = body;
+    const { name, description, price, categoryId, inStock, unit, imageUrl } =
+      body;
 
-    // Простая ручная валидация тела запроса.
+    // ── Валидация обязательных полей ──────────────────────────────────────────
+
     if (typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
         { error: "Поле name обязательно и должно быть строкой" },
@@ -99,6 +177,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Принимаем price и как число, и как строку (на случай формы с <input type="number">)
     const numericPrice = typeof price === "number" ? price : Number(price);
     if (!Number.isFinite(numericPrice) || numericPrice < 0) {
       return NextResponse.json(
@@ -107,6 +186,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── Нормализация необязательных полей ─────────────────────────────────────
+
+    // inStock: берём из тела, иначе дефолт 100. Используем Number.isFinite
+    // для защиты от NaN и Infinity.
     const numericInStock =
       typeof inStock === "number" && Number.isFinite(inStock)
         ? inStock
@@ -115,6 +198,7 @@ export async function POST(request: NextRequest) {
     const product = await prisma.product.create({
       data: {
         name: name.trim(),
+        // Если описание — пустая строка или не строка, сохраняем null
         description:
           typeof description === "string" && description.trim()
             ? description.trim()
@@ -124,11 +208,15 @@ export async function POST(request: NextRequest) {
         inStock: Number.isFinite(numericInStock) ? numericInStock : 100,
         unit: typeof unit === "string" && unit.trim() ? unit.trim() : "шт",
         imageUrl:
-          typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
+          typeof imageUrl === "string" && imageUrl.trim()
+            ? imageUrl.trim()
+            : null,
       },
+      // Возвращаем товар с категорией, чтобы UI мог сразу отобразить её без дополнительного запроса
       include: { category: true },
     });
 
+    // 201 Created — стандартный HTTP-код для успешного создания ресурса
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     console.error("POST /api/products:", error);

@@ -1,39 +1,45 @@
-/* styles/toaster.css — МАКСИМАЛЬНЫЙ ПРИОРИТЕТ */
+/*
+  styles/toaster.css — переопределение стилей react-hot-toast.
+
+  react-hot-toast рендерит уведомления через собственный портал и управляет их
+  позицией через data-атрибут [data-rht-toaster]. Мы переопределяем эти стили
+  через !important, так как библиотека использует инлайн-стили с высоким приоритетом.
+
+  Позиция: центр горизонтально, 80px от верха (ниже sticky-хедера).
+*/
 [data-rht-toaster] {
-    top: 80px !important;
-    right: 24px !important;
-    left: auto !important;
-    bottom: auto !important;
-    transform: none !important;
-    max-width: 700px !important;
+  top: 80px !important;
+  left: 50% !important;       /* Точка отсчёта — левый край элемента, стоит ровно по центру */
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important; /* Сдвигаем назад на половину ширины = точный центр */
+  width: auto !important;
+  max-width: 700px !important;
+  pointer-events: none;       /* Тостер не перехватывает клики (сами тосты перехватывают) */
 }
 
-[data-rht-toaster] {
-    top: 80px !important;
-    left: 50% !important; /* Центр по горизонтали */
-    right: auto !important;
-    bottom: auto !important;
-    transform: translateX(-50%) !important; /* Точное центрирование */
-    width: auto !important;
-    max-width: 700px !important;
-    pointer-events: none;
-}
-
+/* Цвет текста внутри тостов — белый на тёмном фоне */
 [data-rht-toast] span {
-    color: #ffffff !important;
-    white-space: nowrap !important;
+  color: #ffffff !important;
+  white-space: nowrap !important;
 }
 
+/* Кнопка закрытия тоста */
 [data-rht-toast] button {
-    color: #ffffff !important;
+  color: #ffffff !important;
 }
 
+/*
+  Цветные левые бордюры для визуальной дифференциации типов уведомлений.
+  .toast-success / .toast-error — CSS-классы, передаваемые через toast.success({className})
+  [data-type='success'] — атрибут, который сама библиотека ставит на тост
+*/
 .toast-success,
-[data-rht-toast][data-type='success'] {
-    border-left: 4px solid #2dd4bf !important;
+[data-rht-toast][data-type="success"] {
+  border-left: 4px solid #2dd4bf !important; /* teal-400 — соответствует акцентному цвету проекта */
 }
 
 .toast-error,
-[data-rht-toast][data-type='error'] {
-    border-left: 4px solid #fb7185 !important;
+[data-rht-toast][data-type="error"] {
+  border-left: 4px solid #fb7185 !important; /* rose-400 */
 }
