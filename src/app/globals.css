@@ -1,26 +1,184 @@
 @import 'tailwindcss';
 
-/* 
-  Глобальные CSS‑переменные для светлой и тёмной темы.
-  Tailwind 4 читает их через @theme inline ниже.
+/*
+  Tailwind v4: переключаем тёмную тему с системного (@media prefers-color-scheme)
+  на класс-based подход. Когда на <html> стоит класс .dark-mode, все Tailwind
+  dark:-утилиты внутри активируются. Класс управляется через ThemeContext
+  (src/context/ThemeContext.tsx) и сохраняется в localStorage.
+
+  Синтаксис: &:is(.dark-mode *) — «элемент является потомком .dark-mode»
 */
+@custom-variant dark (&:is(.dark-mode *));
+
+/*
+  Глобальная цветовая схема — адаптирована из предыдущего проекта.
+  Цвета взяты из https://tailwindcss.com/docs/customizing-colors
+
+  Архитектура переменных:
+    1. Серая шкала (--color-grey-*)        — инвертируется в тёмной теме
+    2. Семантические цвета (--color-*-100/700) — инвертируются в тёмной теме
+    3. Брендовые цвета Indigo (--color-brand-*) — постоянны в обеих темах
+    4. Токены компонентов (--background, --card-bg и т.д.) — ссылаются на шкалу
+    5. Служебные (радиусы, тени, скроллбары)
+
+  Переключение темы работает так:
+    :root.light-mode → серая шкала = светлые значения → компоненты светлые
+    :root.dark-mode  → серая шкала = тёмные значения  → компоненты тёмные
+*/
+
 :root {
-    --background: #f8faf9;
-    --foreground: #1e293b;
-    --card-bg: #ffffff;
-    --card-border: #e2e8f0;
-    --accent: #0d9488;
-    --accent-soft: #ccfbf1;
-    --accent-hover: #0f766e;
-    --shadow-soft:
-        0 4px 20px -2px rgb(0 0 0 / 0.06), 0 2px 8px -2px rgb(0 0 0 / 0.04);
-    --shadow-hover:
-        0 12px 40px -4px rgb(0 0 0 / 0.08), 0 4px 12px -2px rgb(0 0 0 / 0.04);
+    /* ── Светлая тема (по умолчанию) ──────────────────────────────────────── */
+    &,
+    &.light-mode {
+
+        /* ── Серая шкала (светлая) ──────────────────────────────────────────── */
+        --color-grey-0: #fff;
+        --color-grey-50: #f9fafb;
+        --color-grey-100: #f3f4f6;
+        --color-grey-200: #e5e7eb;
+        --color-grey-300: #d1d5db;
+        --color-grey-400: #9ca3af;
+        --color-grey-500: #6b7280;
+        --color-grey-600: #4b5563;
+        --color-grey-700: #374151;
+        --color-grey-800: #1f2937;
+        --color-grey-900: #111827;
+
+        /* ── Семантические цвета статусов (светлая тема) ─────────────────────── */
+        --color-blue-100: #e0f2fe;
+        --color-blue-700: #0369a1;
+        --color-green-100: #dcfce7;
+        --color-green-700: #15803d;
+        --color-yellow-100: #fef9c3;
+        --color-yellow-700: #a16207;
+        --color-silver-100: #e5e7eb;
+        --color-silver-700: #374151;
+        --color-indigo-100: #e0e7ff;
+        --color-indigo-700: #4338ca;
+        --color-red-100: #fee2e2;
+        --color-red-700: #b91c1c;
+        --color-red-800: #991b1b;
+
+        /* ── Оверлеи и базовые тени ──────────────────────────────────────────── */
+        --backdrop-color: rgba(255, 255, 255, 0.1);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0px 0.6rem 2.4rem rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 2.4rem 3.2rem rgba(0, 0, 0, 0.12);
+
+        /* ── Изображения ──────────────────────────────────────────────────────── */
+        --image-grayscale: 0;
+        --image-opacity: 100%;
+
+        /* ── Токены компонентов — привязаны к серой шкале ────────────────────── */
+        /* Благодаря этой привязке при смене темы все компоненты обновляются */
+        --background: var(--color-grey-50);       /* Фон страницы */
+        --foreground: var(--color-grey-800);       /* Основной текст */
+        --card-bg: var(--color-grey-0);            /* Фон карточек */
+        --card-border: var(--color-grey-200);      /* Рамки карточек */
+        --input-bg: var(--color-grey-100);         /* Фон полей ввода */
+        --input-border: var(--color-grey-200);     /* Рамки полей ввода */
+        --input-text: var(--color-grey-800);       /* Текст в полях */
+        --label-color: var(--color-grey-700);      /* Подписи полей */
+        --muted-text: var(--color-grey-500);       /* Приглушённый текст */
+        --header-bg: rgba(249, 250, 251, 0.85);    /* Фон шапки (glassmorphism) */
+        --header-border: var(--color-grey-200);    /* Рамка шапки */
+
+        /* ── Акцентный цвет — Indigo из брендовой палитры ───────────────────── */
+        --accent: var(--color-brand-500);          /* Основной акцент: #6366f1 */
+        --accent-soft: var(--color-indigo-100);    /* Мягкий акцент фона */
+        --accent-hover: var(--color-brand-600);    /* Акцент при hover */
+        --accent-text: var(--color-brand-700);     /* Текст ссылок/кнопок */
+
+        /* ── Тени компонентов (светлая тема) ─────────────────────────────────── */
+        --shadow-soft:
+            0 4px 20px -2px rgb(0 0 0 / 0.06),
+            0 2px 8px -2px rgb(0 0 0 / 0.04);
+        --shadow-hover:
+            0 12px 40px -4px rgb(0 0 0 / 0.10),
+            0 4px 12px -2px rgb(0 0 0 / 0.06);
+    }
+
+    /* ── Тёмная тема ──────────────────────────────────────────────────────── */
+    &.dark-mode {
+
+        /* ── Серая шкала (тёмная) — значения инвертированы ──────────────────── */
+        --color-grey-0: #18212f;
+        --color-grey-50: #111827;
+        --color-grey-100: #1f2937;
+        --color-grey-200: #374151;
+        --color-grey-300: #4b5563;
+        --color-grey-400: #6b7280;
+        --color-grey-500: #9ca3af;
+        --color-grey-600: #d1d5db;
+        --color-grey-700: #e5e7eb;
+        --color-grey-800: #f3f4f6;
+        --color-grey-900: #f9fafb;
+
+        /* ── Семантические цвета статусов (тёмная тема) ──────────────────────── */
+        --color-blue-100: #075985;
+        --color-blue-700: #e0f2fe;
+        --color-green-100: #166534;
+        --color-green-700: #dcfce7;
+        --color-yellow-100: #854d0e;
+        --color-yellow-700: #fef9c3;
+        --color-silver-100: #374151;
+        --color-silver-700: #f3f4f6;
+        --color-indigo-100: #3730a3;
+        --color-indigo-700: #e0e7ff;
+        --color-red-100: #fee2e2;
+        --color-red-700: #b91c1c;
+        --color-red-800: #991b1b;
+
+        /* ── Оверлеи и базовые тени (тёмная тема) ────────────────────────────── */
+        --backdrop-color: rgba(0, 0, 0, 0.3);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0px 0.6rem 2.4rem rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 2.4rem 3.2rem rgba(0, 0, 0, 0.4);
+
+        /* ── Изображения (тёмная тема) ───────────────────────────────────────── */
+        --image-grayscale: 10%;
+        --image-opacity: 90%;
+
+        /* ── Токены шапки (тёмная тема) ──────────────────────────────────────── */
+        --header-bg: rgba(17, 24, 39, 0.90);       /* Тёмный glassmorphism */
+        --header-border: var(--color-grey-200);    /* Рамка шапки (grey-200 в тёмной = #374151) */
+
+        /* ── Акцентный цвет в тёмной теме — чуть ярче для читаемости ─────────── */
+        --accent: var(--color-brand-500);          /* Indigo-500 одинаков в обеих темах */
+        --accent-soft: var(--color-indigo-100);    /* #3730a3 в тёмной теме */
+        --accent-hover: var(--color-brand-400, #818cf8); /* Светлее для hover в темноте */
+        --accent-text: var(--color-indigo-700);    /* #e0e7ff в тёмной теме */
+
+        /* ── Тени компонентов (тёмная тема) ──────────────────────────────────── */
+        --shadow-soft: 0 4px 20px -2px rgb(0 0 0 / 0.3);
+        --shadow-hover: 0 12px 40px -4px rgb(0 0 0 / 0.4);
+    }
+
+    /* ── Брендовые цвета Indigo — постоянны в обеих темах ───────────────────── */
+    --color-brand-50: #eef2ff;
+    --color-brand-100: #e0e7ff;
+    --color-brand-200: #c7d2fe;
+    --color-brand-400: #818cf8;
+    --color-brand-500: #6366f1;
+    --color-brand-600: #4f46e5;
+    --color-brand-700: #4338ca;
+    --color-brand-800: #3730a3;
+    --color-brand-900: #312e81;
+
+    /* ── Радиусы скруглений — постоянны ─────────────────────────────────────── */
+    --border-radius-tiny: 3px;
+    --border-radius-sm: 5px;
+    --border-radius-md: 7px;
+    --border-radius-lg: 9px;
     --radius: 16px;
     --radius-lg: 20px;
 }
 
-/* Прокидываем переменные в Tailwind‑тему (Tailwind v4, режим @theme inline). */
+/*
+  Прокидываем CSS-переменные в Tailwind-тему (Tailwind v4, режим @theme inline).
+  Это позволяет использовать классы вида bg-background, text-foreground и т.д.
+  как обычные Tailwind-утилиты.
+*/
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -28,20 +186,7 @@
     --font-mono: var(--font-geist-mono);
 }
 
-/* Тёмная тема подстраивается под системную настройку браузера. */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background: #0f1419;
-        --foreground: #e2e8f0;
-        --card-bg: #1e293b;
-        --card-border: #334155;
-        --accent: #2dd4bf;
-        --accent-soft: #134e4a;
-        --accent-hover: #5eead4;
-        --shadow-soft: 0 4px 20px -2px rgb(0 0 0 / 0.3);
-        --shadow-hover: 0 12px 40px -4px rgb(0 0 0 / 0.4);
-    }
-}
+/* ── Базовые стили body ──────────────────────────────────────────────────────── */
 
 body {
     background: var(--background);
@@ -51,7 +196,8 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* Мягкие скроллбары */
+/* ── Мягкие скроллбары — используют серую шкалу для автоадаптации темы ──────── */
+
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -61,16 +207,18 @@ body {
     background: transparent;
 }
 
+/* В светлой теме: grey-300 = #d1d5db; в тёмной: grey-300 = #4b5563 */
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--color-grey-300);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: var(--color-grey-400);
 }
 
-/* Плавные переходы для интерактивных элементов */
+/* ── Плавные переходы для интерактивных элементов ───────────────────────────── */
+
 button,
 a,
 input,
@@ -78,6 +226,22 @@ select,
 textarea {
     transition: all 0.2s ease;
 }
+
+/* ── Плавный переход цветов при переключении темы ───────────────────────────── */
+/*
+  Список только для свойств, связанных с цветом. Переходы transform/opacity
+  не включены намеренно, чтобы не конфликтовать с анимациями компонентов.
+  Работает только при ручном переключении (не при первой загрузке страницы),
+  потому что инлайн-скрипт в <head> устанавливает тему ДО рендера.
+*/
+*,
+*::before,
+*::after {
+    transition: background-color 0.25s ease, border-color 0.25s ease,
+        color 0.25s ease, fill 0.25s ease, stroke 0.25s ease;
+}
+
+/* ── Анимация появления страниц ─────────────────────────────────────────────── */
 
 @keyframes fade-in {
     from {
@@ -92,4 +256,14 @@ textarea {
 
 .animate-fade-in {
     animation: fade-in 0.4s ease-out forwards;
+}
+
+/* ── Применяем filter к изображениям согласно переменным темы ───────────────── */
+/*
+  В тёмной теме изображения немного приглушаются (grayscale + opacity),
+  чтобы они не казались слишком яркими на тёмном фоне.
+*/
+img {
+    filter: grayscale(var(--image-grayscale)) opacity(var(--image-opacity));
+    transition: filter 0.25s ease;
 }

@@ -7,6 +7,10 @@
  * странице каталога, так и в административной панели.
  *
  * Если у товара нет изображения — показываем placeholder-иконку 📦.
+ *
+ * Цвета: компонент использует CSS-переменные дизайн-системы (--card-bg,
+ * --card-border, --color-grey-*, --accent), которые автоматически
+ * переключаются при смене темы без каких-либо дополнительных dark:-классов.
  */
 "use client";
 
@@ -24,12 +28,28 @@ export function ProductCard({ product }: ProductCardProps) {
       реагировать на hover родителя (group-hover:...).
       Используется для анимации изображения при наведении на карточку.
     */
-    <div className="group bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/50 p-5 shadow-(--shadow-soft) hover:shadow-(--shadow-hover) hover:-translate-y-0.5 transition-all duration-300">
+    <div
+      className="group rounded-2xl p-5 hover:-translate-y-0.5 transition-all duration-300"
+      style={{
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
+        boxShadow: 'var(--shadow-soft)',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-hover)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-soft)';
+      }}
+    >
       {/*
         Контейнер изображения с соотношением сторон 1:1 (aspect-square).
         overflow-hidden обрезает изображение по скруглённым углам.
       */}
-      <div className="aspect-square bg-slate-100/80 dark:bg-slate-700/50 rounded-xl mb-4 flex items-center justify-center text-4xl overflow-hidden">
+      <div
+        className="aspect-square rounded-xl mb-4 flex items-center justify-center text-4xl overflow-hidden"
+        style={{ background: 'var(--color-grey-100)' }}
+      >
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
@@ -38,28 +58,39 @@ export function ProductCard({ product }: ProductCardProps) {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
-          <span className="text-slate-400 dark:text-slate-500">📦</span>
+          // Цвет placeholder-иконки из серой шкалы — адаптируется к теме
+          <span style={{ color: 'var(--color-grey-400)' }}>📦</span>
         )}
       </div>
 
       {/* line-clamp-2 ограничивает текст двумя строками с многоточием */}
-      <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-1 line-clamp-2 text-[15px] leading-snug">
+      <h3
+        className="font-semibold mb-1 line-clamp-2 text-[15px] leading-snug"
+        style={{ color: 'var(--color-grey-800)' }}
+      >
         {product.name}
       </h3>
 
       {/* Описание показывается только если оно есть (поле опциональное) */}
       {product.description && (
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">
+        <p
+          className="text-sm mb-3 line-clamp-2"
+          style={{ color: 'var(--color-grey-500)' }}
+        >
           {product.description}
         </p>
       )}
 
       {/* Нижняя строка: цена слева, остаток справа */}
       <div className="flex items-center justify-between pt-1">
-        <span className="text-lg font-bold text-teal-600 dark:text-teal-400">
+        {/*
+          Акцентный цвет цены — берётся из --accent (Indigo-500 в светлой теме,
+          тот же Indigo-500 в тёмной). Это ключевой брендовый цвет дизайн-системы.
+        */}
+        <span className="text-lg font-bold" style={{ color: 'var(--accent)' }}>
           {product.price} ₽
         </span>
-        <span className="text-xs text-slate-400 dark:text-slate-500">
+        <span className="text-xs" style={{ color: 'var(--color-grey-500)' }}>
           в наличии: {product.inStock} {product.unit}
         </span>
       </div>

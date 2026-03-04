@@ -8,6 +8,10 @@
  *
  * Экспортируем как именованный экспорт, а не default,
  * чтобы файл мог экспортировать несколько символов (ProductFormData тоже).
+ *
+ * Цвета: все цвета берутся из CSS-переменных дизайн-системы, которые
+ * автоматически переключаются при смене темы. Акцентный цвет — Indigo
+ * из брендовой палитры (--accent, --color-brand-*).
  */
 "use client";
 
@@ -126,15 +130,43 @@ export function ProductForm({
     });
   };
 
-  // Переиспользуемый класс для всех полей ввода, чтобы не дублировать длинную строку
+  /*
+    Общий класс для полей ввода — вынесен в переменную, чтобы не дублировать.
+    Цвета задаются через CSS-переменные, которые меняются с темой автоматически.
+    focus:ring-[var(--accent)] использует Indigo как акцентный цвет фокуса.
+  */
   const inputStyles =
-    "w-full px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-600/50 rounded-xl text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed";
+    "w-full px-4 py-2.5 rounded-xl outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed";
+
+  // Обработчики focus/blur для ring-эффекта через inline-стили (CSS vars + box-shadow)
+  const focusHandlers = {
+    onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      if (!isSaving) {
+        (e.target as HTMLElement).style.boxShadow = '0 0 0 3px var(--accent-soft)';
+        (e.target as HTMLElement).style.borderColor = 'var(--accent)';
+      }
+    },
+    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      (e.target as HTMLElement).style.boxShadow = 'none';
+      (e.target as HTMLElement).style.borderColor = 'var(--input-border)';
+    },
+  };
+
+  // Базовые inline-стили для полей ввода (CSS-переменные темы)
+  const inputStyle = {
+    background: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    color: 'var(--input-text)',
+  };
+
+  // Inline-стили для label-ов
+  const labelStyle = { color: 'var(--label-color)' };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* ── Название ────────────────────────────────────────────────────────── */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+        <label className="block text-sm font-medium mb-1.5" style={labelStyle}>
           Название *
         </label>
         <input
@@ -145,12 +177,14 @@ export function ProductForm({
           disabled={isSaving}
           placeholder="Например: Яблоки Голден"
           className={inputStyles}
+          style={inputStyle}
+          {...focusHandlers}
         />
       </div>
 
       {/* ── Описание (необязательное) ────────────────────────────────────────── */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+        <label className="block text-sm font-medium mb-1.5" style={labelStyle}>
           Описание
         </label>
         <textarea
@@ -160,13 +194,15 @@ export function ProductForm({
           disabled={isSaving}
           placeholder="Краткое описание товара..."
           className={`${inputStyles} resize-none`}
+          style={inputStyle}
+          {...focusHandlers}
         />
       </div>
 
       {/* ── Цена и Категория (в одну строку на достаточно широких экранах) ──── */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-sm font-medium mb-1.5" style={labelStyle}>
             Цена (₽) *
           </label>
           <input
@@ -179,10 +215,12 @@ export function ProductForm({
             disabled={isSaving}
             placeholder="0.00"
             className={inputStyles}
+            style={inputStyle}
+            {...focusHandlers}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-sm font-medium mb-1.5" style={labelStyle}>
             Категория *
           </label>
           {/* Отключаем selects если категорий нет (например, данные ещё грузятся) */}
@@ -192,6 +230,8 @@ export function ProductForm({
             required
             disabled={isSaving || categories.length === 0}
             className={inputStyles}
+            style={inputStyle}
+            {...focusHandlers}
           >
             <option value="">Выберите...</option>
             {categories.map((c) => (
@@ -206,7 +246,7 @@ export function ProductForm({
       {/* ── Остатки и единица измерения ──────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-sm font-medium mb-1.5" style={labelStyle}>
             В наличии
           </label>
           <input
@@ -216,10 +256,12 @@ export function ProductForm({
             onChange={(e) => setInStock(e.target.value)}
             disabled={isSaving}
             className={inputStyles}
+            style={inputStyle}
+            {...focusHandlers}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-sm font-medium mb-1.5" style={labelStyle}>
             Единица
           </label>
           <select
@@ -227,6 +269,8 @@ export function ProductForm({
             onChange={(e) => setUnit(e.target.value)}
             disabled={isSaving}
             className={inputStyles}
+            style={inputStyle}
+            {...focusHandlers}
           >
             <option value="шт">шт</option>
             <option value="кг">кг</option>
@@ -238,7 +282,7 @@ export function ProductForm({
 
       {/* ── URL изображения ──────────────────────────────────────────────────── */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+        <label className="block text-sm font-medium mb-1.5" style={labelStyle}>
           URL изображения
         </label>
         <input
@@ -248,10 +292,12 @@ export function ProductForm({
           disabled={isSaving}
           placeholder="/images/product.jpg"
           className={inputStyles}
+          style={inputStyle}
+          {...focusHandlers}
         />
         {/* Небольшая подсказка с текущим URL, только если он введён */}
         {imageUrl && (
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs" style={{ color: 'var(--color-grey-500)' }}>
             Предпросмотр: <span className="underline">{imageUrl}</span>
           </p>
         )}
@@ -261,19 +307,45 @@ export function ProductForm({
         Ошибка от родительского компонента (AdminPage).
         Появляется, если сервер вернул ошибку при сохранении.
         Расположена прямо над кнопками, чтобы пользователь точно её заметил.
+        Использует --color-red-100/700 из дизайн-системы, которые адаптируются к теме.
       */}
       {error && (
-        <div className="rounded-xl border border-rose-300/80 dark:border-rose-500/70 bg-rose-50 dark:bg-rose-900/40 px-4 py-3 text-sm text-rose-700 dark:text-rose-200">
+        <div
+          className="rounded-xl px-4 py-3 text-sm"
+          style={{
+            background: 'var(--color-red-100)',
+            border: '1px solid var(--color-red-700)',
+            color: 'var(--color-red-700)',
+          }}
+        >
           ⚠️ {error}
         </div>
       )}
 
       {/* ── Кнопки действий ──────────────────────────────────────────────────── */}
-      <div className="flex gap-3 pt-5 border-t border-slate-200/60 dark:border-slate-700/50">
+      <div
+        className="flex gap-3 pt-5"
+        style={{ borderTop: '1px solid var(--card-border)' }}
+      >
+        {/*
+          Кнопка "Сохранить": использует --color-brand-600 (Indigo-600) как фон.
+          При hover чуть темнее — --color-brand-700 (Indigo-700).
+          Disabled: приглушённый серый из серой шкалы.
+        */}
         <button
           type="submit"
           disabled={isSaving}
-          className="flex-1 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-xl font-medium shadow-(--shadow-soft) transition-all flex items-center justify-center gap-2"
+          className="flex-1 px-5 py-2.5 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+          style={{
+            background: 'var(--color-brand-600)',
+            boxShadow: 'var(--shadow-soft)',
+          }}
+          onMouseEnter={(e) => {
+            if (!isSaving) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-brand-700)';
+          }}
+          onMouseLeave={(e) => {
+            if (!isSaving) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-brand-600)';
+          }}
         >
           {isSaving ? (
             <>
@@ -288,11 +360,22 @@ export function ProductForm({
           )}
         </button>
 
+        {/* Кнопка "Отмена": нейтральный серый фон, адаптируется к теме */}
         <button
           type="button"
           onClick={onCancel}
           disabled={isSaving}
-          className="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-medium hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+          className="px-5 py-2.5 rounded-xl font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{
+            background: 'var(--color-grey-200)',
+            color: 'var(--color-grey-700)',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-grey-300)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-grey-200)';
+          }}
         >
           Отмена
         </button>

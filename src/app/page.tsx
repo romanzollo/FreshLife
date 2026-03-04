@@ -108,7 +108,10 @@ export default function Home() {
   return (
     // animate-fade-in — кастомная анимация из globals.css (плавное появление страницы)
     <div className="animate-fade-in">
-      <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-8 tracking-tight">
+      <h1
+        className="text-3xl font-bold mb-8 tracking-tight"
+        style={{ color: 'var(--color-grey-800)' }}
+      >
         Каталог продуктов
       </h1>
 
@@ -130,17 +133,36 @@ export default function Home() {
       {/* Область результатов: три взаимоисключающих состояния */}
       {loading ? (
         // Состояние загрузки
-        <div className="text-center py-16 text-slate-500 dark:text-slate-400 text-lg">
+        <div
+          className="text-center py-16 text-lg"
+          style={{ color: 'var(--color-grey-500)' }}
+        >
           <span className="inline-block animate-pulse">Загрузка...</span>
         </div>
       ) : error ? (
-        // Состояние ошибки
-        <div className="text-center py-16 text-rose-500 dark:text-rose-400 bg-white dark:bg-slate-800/50 rounded-2xl border border-rose-200/80 dark:border-rose-500/50 shadow-(--shadow-soft)">
+        // Состояние ошибки — использует переменные красного цвета из дизайн-системы
+        <div
+          className="text-center py-16 rounded-2xl"
+          style={{
+            color: 'var(--color-red-700)',
+            background: 'var(--color-red-100)',
+            border: '1px solid var(--color-red-700)',
+            boxShadow: 'var(--shadow-soft)',
+          }}
+        >
           {error}
         </div>
       ) : products.length === 0 ? (
         // Пустой результат (фильтр не нашёл товаров)
-        <div className="text-center py-16 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/50 shadow-(--shadow-soft)">
+        <div
+          className="text-center py-16 rounded-2xl"
+          style={{
+            color: 'var(--color-grey-500)',
+            background: 'var(--card-bg)',
+            border: '1px solid var(--card-border)',
+            boxShadow: 'var(--shadow-soft)',
+          }}
+        >
           Товары не найдены
         </div>
       ) : (

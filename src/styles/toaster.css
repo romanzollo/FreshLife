@@ -6,6 +6,10 @@
   через !important, так как библиотека использует инлайн-стили с высоким приоритетом.
 
   Позиция: центр горизонтально, 80px от верха (ниже sticky-хедера).
+
+  Цвета тостов определяются в layout.tsx через toastOptions.style, используя
+  CSS-переменные дизайн-системы (--color-grey-100/800). Здесь управляем только
+  позиционированием и декоративными бордюрами типов уведомлений.
 */
 [data-rht-toaster] {
   top: 80px !important;
@@ -18,25 +22,31 @@
   pointer-events: none;       /* Тостер не перехватывает клики (сами тосты перехватывают) */
 }
 
-/* Цвет текста внутри тостов — белый на тёмном фоне */
+/* Цвет текста внутри тостов берётся из инлайн-стиля (CSS-переменная --color-grey-800) */
 [data-rht-toast] span {
-  color: #ffffff !important;
   white-space: nowrap !important;
 }
 
-/* Кнопка закрытия тоста */
+/* Кнопка закрытия тоста — используем цвет текста из переменной темы */
 [data-rht-toast] button {
-  color: #ffffff !important;
+  opacity: 0.6;
+}
+
+[data-rht-toast] button:hover {
+  opacity: 1;
 }
 
 /*
   Цветные левые бордюры для визуальной дифференциации типов уведомлений.
   .toast-success / .toast-error — CSS-классы, передаваемые через toast.success({className})
-  [data-type='success'] — атрибут, который сама библиотека ставит на тост
+  [data-type='success'] — атрибут, который сама библиотека ставит на тост.
+
+  Используем брендовую палитру Indigo для успеха и красный для ошибок.
+  Indigo-400 (#818cf8) выбран для успеха — контрастен как на светлом, так и на тёмном фоне.
 */
 .toast-success,
 [data-rht-toast][data-type="success"] {
-  border-left: 4px solid #2dd4bf !important; /* teal-400 — соответствует акцентному цвету проекта */
+  border-left: 4px solid #818cf8 !important; /* Indigo-400 — брендовый акцентный цвет */
 }
 
 .toast-error,

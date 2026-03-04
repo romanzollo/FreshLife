@@ -1,4 +1,4 @@
-// Prisma schema for Ozon Fresh - доставка продуктов питания
+// Prisma schema for FreshLife - доставка продуктов питания
 // SQLite для простоты запуска на любом компьютере
 
 generator client {

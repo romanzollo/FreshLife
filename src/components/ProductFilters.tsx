@@ -8,6 +8,9 @@
  * Особенность сортировки: поле и направление объединены в одну строку
  * формата "field-direction" (например, "price-asc"), чтобы использовать
  * один <select> вместо двух. При изменении значение разбивается по "-".
+ *
+ * Цвета: все цвета берутся из CSS-переменных дизайн-системы, которые
+ * автоматически переключаются при смене темы (светлая / тёмная).
  */
 "use client";
 
@@ -45,13 +48,32 @@ export function ProductFilters({
   onSortChange,
   onSearchChange,
 }: ProductFiltersProps) {
-  // Общий стиль для всех элементов управления, вынесен в переменную
-  // чтобы не дублировать длинную строку классов три раза
+  /*
+    Общий стиль для всех элементов управления — вынесен в переменную,
+    чтобы не дублировать длинную строку классов три раза.
+    
+    Цвета задаются через CSS-переменные дизайн-системы:
+    - --input-bg, --input-border, --input-text: меняются с темой
+    - focus:ring-[var(--accent)]: акцентный Indigo для ring-эффекта
+  */
   const inputStyles =
-    "px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-600/50 rounded-xl text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all";
+    "px-4 py-2.5 rounded-xl outline-none transition-all text-sm font-medium";
+
+  const inputInlineStyles = {
+    background: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    color: 'var(--input-text)',
+  };
 
   return (
-    <div className="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/50 p-5 mb-8 shadow-(--shadow-soft)">
+    <div
+      className="rounded-2xl p-5 mb-8"
+      style={{
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
+        boxShadow: 'var(--shadow-soft)',
+      }}
+    >
       {/* flex-wrap позволяет элементам переноситься на новую строку на узких экранах */}
       <div className="flex flex-wrap gap-4 items-center">
         {/* Поле поиска: flex-1 + min-w-[200px] делает его резиновым */}
@@ -60,7 +82,20 @@ export function ProductFilters({
           placeholder="Поиск товаров..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className={`flex-1 min-w-[200px] ${inputStyles}`}
+          className={`flex-1 min-w-[200px] ${inputStyles} placeholder:opacity-50`}
+          style={{
+            ...inputInlineStyles,
+            // Переопределяем outline через focus-visible напрямую в CSS
+          }}
+          onFocus={(e) => {
+            // Добавляем ring-эффект при фокусе через box-shadow
+            (e.target as HTMLInputElement).style.boxShadow = '0 0 0 3px var(--accent-soft)';
+            (e.target as HTMLInputElement).style.borderColor = 'var(--accent)';
+          }}
+          onBlur={(e) => {
+            (e.target as HTMLInputElement).style.boxShadow = 'none';
+            (e.target as HTMLInputElement).style.borderColor = 'var(--input-border)';
+          }}
         />
 
         {/* Фильтр по категории */}
@@ -68,6 +103,15 @@ export function ProductFilters({
           value={selectedCategory}
           onChange={(e) => onCategoryChange(e.target.value)}
           className={inputStyles}
+          style={inputInlineStyles}
+          onFocus={(e) => {
+            (e.target as HTMLSelectElement).style.boxShadow = '0 0 0 3px var(--accent-soft)';
+            (e.target as HTMLSelectElement).style.borderColor = 'var(--accent)';
+          }}
+          onBlur={(e) => {
+            (e.target as HTMLSelectElement).style.boxShadow = 'none';
+            (e.target as HTMLSelectElement).style.borderColor = 'var(--input-border)';
+          }}
         >
           <option value="">Все категории</option>
           {categories.map((cat) => (
@@ -89,6 +133,15 @@ export function ProductFilters({
             onSortChange(field, direction);
           }}
           className={inputStyles}
+          style={inputInlineStyles}
+          onFocus={(e) => {
+            (e.target as HTMLSelectElement).style.boxShadow = '0 0 0 3px var(--accent-soft)';
+            (e.target as HTMLSelectElement).style.borderColor = 'var(--accent)';
+          }}
+          onBlur={(e) => {
+            (e.target as HTMLSelectElement).style.boxShadow = 'none';
+            (e.target as HTMLSelectElement).style.borderColor = 'var(--input-border)';
+          }}
         >
           <option value="name-asc">По названию (А-Я)</option>
           <option value="name-desc">По названию (Я-А)</option>

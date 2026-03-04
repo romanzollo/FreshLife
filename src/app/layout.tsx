@@ -9,20 +9,25 @@
  *
  * Структура страницы:
  *   <html>
+ *     <head>  ← инлайн-скрипт защиты от FOUC (flash of unstyled content)
  *     <body>
- *       <header>  ← навигация (sticky, всегда видна)
- *       <main>    ← контент страницы (сюда попадает children)
- *       <Toaster> ← всплывающие уведомления (react-hot-toast)
+ *       <ThemeProvider>   ← клиентский провайдер темы (светлая / тёмная)
+ *         <header>        ← навигация + кнопка переключения темы (sticky)
+ *         <main>          ← контент страницы (сюда попадает children)
+ *         <Toaster>       ← всплывающие уведомления (react-hot-toast)
+ *       </ThemeProvider>
  *     </body>
  *   </html>
  */
 
-import { Toaster } from "react-hot-toast";
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
-import "./globals.css";
-import "@/styles/toaster.css";
+import { Toaster } from 'react-hot-toast';
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import Link from 'next/link';
+import { ThemeProvider } from '@/context/ThemeContext';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import './globals.css';
+import '@/styles/toaster.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Шрифты
@@ -32,13 +37,13 @@ import "@/styles/toaster.css";
 // через CSS-переменную. Это даёт нулевые сдвиги макета (CLS = 0) и исключает
 // внешние запросы к Google Fonts в браузере.
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+    variable: '--font-geist-sans',
+    subsets: ['latin'],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+    variable: '--font-geist-mono',
+    subsets: ['latin'],
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,91 +53,169 @@ const geistMono = Geist_Mono({
 // Next.js автоматически вставляет эти данные в <head> страниц.
 // Дочерние layout.tsx и page.tsx могут переопределять отдельные поля.
 export const metadata: Metadata = {
-  title: "Ozon Fresh — Доставка продуктов",
-  description: "Веб-приложение доставки продуктов питания",
+    title: 'FreshLife — Доставка продуктов',
+    description: 'Веб-приложение доставки продуктов питания',
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Инлайн-скрипт защиты от FOUC (Flash Of Unstyled Content)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/*
+  Проблема: ThemeProvider (клиент) читает localStorage при монтировании.
+  До первого рендера React страница может промелькнуть со светлой темой,
+  даже если пользователь выбрал тёмную. Это называется FOUC.
+
+  Решение: синхронный скрипт в <head>, который запускается ДО первого рендера
+  и сразу ставит нужный класс (.light-mode / .dark-mode) на <html>.
+  К моменту отрисовки пикселей CSS уже содержит правильные переменные.
+
+  dangerouslySetInnerHTML используется, потому что нет другого способа вставить
+  инлайн-скрипт в Next.js без defer/async (которые запустятся слишком поздно).
+*/
+const FOUC_PREVENTION_SCRIPT = `
+(function () {
+  try {
+    var saved = localStorage.getItem('theme');
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Приоритет: сохранённое → системное предпочтение → светлая по умолчанию
+    var theme = saved || (prefersDark ? 'dark' : 'light');
+    document.documentElement.classList.add(theme + '-mode');
+  } catch (e) {
+    // Если localStorage недоступен (например, приватный режим Safari) —
+    // ставим светлую тему по умолчанию
+    document.documentElement.classList.add('light-mode');
+  }
+})();
+`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Компонент макета
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode;
+    children: React.ReactNode;
 }>) {
-  return (
-    // lang="ru" важен для доступности (screen reader произносит текст правильно)
-    // suppressHydrationWarning подавляет предупреждение о несоответствии
-    // HTML с сервера и клиента (может возникать из-за браузерных расширений)
-    <html lang="ru" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background font-sans`}
-        suppressHydrationWarning
-      >
-        {/*
-          Sticky-хедер: остаётся видимым при прокрутке страницы.
-          z-40 — поверх большинства контента, но ниже модальных окон (z-[9999]).
-          Эффект glassmorphism: bg-white/80 + backdrop-blur-xl.
+    return (
+        // lang="ru" важен для доступности (screen reader произносит текст правильно)
+        // suppressHydrationWarning подавляет предупреждение о несоответствии HTML:
+        // инлайн-скрипт добавляет класс темы ДО гидрации, поэтому серверный HTML
+        // (<html>) и клиентский (<html class="light-mode">) будут различаться.
+        <html lang="ru" suppressHydrationWarning>
+            <head>
+                {/*
+          Скрипт без defer/async — выполняется синхронно, блокируя рендер.
+          Это единственный случай, когда блокирующий скрипт оправдан:
+          он предотвращает мелькание темы (FOUC), занимает < 1 мс.
         */}
-        <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/60 dark:border-slate-700/50 shadow-(--shadow-soft)">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            {/* Логотип — ссылка на главную страницу */}
-            <Link
-              href="/"
-              className="text-xl font-bold text-slate-800 dark:text-slate-100 hover:text-teal-600 dark:hover:text-teal-400 transition-colors tracking-tight"
+                <script
+                    dangerouslySetInnerHTML={{ __html: FOUC_PREVENTION_SCRIPT }}
+                />
+            </head>
+            <body
+                className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background font-sans`}
+                suppressHydrationWarning
             >
-              🛒 Ozon Fresh
-            </Link>
-
-            {/* Основная навигация */}
-            <nav className="flex gap-8">
-              <Link
-                href="/"
-                className="text-slate-600 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 font-medium transition-colors"
-              >
-                Каталог
-              </Link>
-              <Link
-                href="/admin"
-                className="text-slate-600 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 font-medium transition-colors"
-              >
-                Управление товарами
-              </Link>
-            </nav>
-          </div>
-        </header>
-
-        {/*
-          Основная область контента страницы.
-          container mx-auto ограничивает ширину по breakpoint-ам Tailwind
-          и центрирует содержимое на широких экранах.
+                {/*
+          ThemeProvider — клиентский провайдер контекста темы.
+          Оборачивает всё содержимое <body>, чтобы любой компонент внутри
+          мог вызвать useTheme() и получить текущую тему / переключатель.
+          ThemeToggle в header использует именно этот контекст.
         */}
-        <main className="container mx-auto px-4 py-10">{children}</main>
+                <ThemeProvider>
+                    {/*
+            Sticky-хедер: остаётся видимым при прокрутке страницы.
+            z-40 — поверх большинства контента, но ниже модальных окон (z-[9999]).
+            Эффект glassmorphism: var(--header-bg) + backdrop-blur-xl.
+            Цвета шапки берутся из CSS-переменных, которые автоматически
+            меняются при смене темы (не нужны dark:-классы Tailwind).
+          */}
+                    <header
+                        className="sticky top-0 z-40 backdrop-blur-xl border-b shadow-(--shadow-soft)"
+                        style={{
+                            background: 'var(--header-bg)',
+                            borderColor: 'var(--header-border)',
+                        }}
+                    >
+                        <div className="container mx-auto px-4 py-3.5 flex items-center justify-between gap-4">
+                            {/* Логотип — ссылка на главную страницу */}
+                            <Link
+                                href="/"
+                                className="text-xl font-bold tracking-tight transition-colors"
+                                style={{
+                                    color: 'var(--color-grey-800)',
+                                }}
+                            >
+                                🛒 FreshLife
+                            </Link>
 
-        {/*
-          Toaster — контейнер для всплывающих уведомлений react-hot-toast.
-          Рендерится через портал за пределами дерева компонентов.
-          position здесь — дефолт для новых тостов; toaster.css переопределяет
-          фактическую позицию контейнера через CSS.
-        */}
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            duration: 3000,
-            success: { duration: 3000 },
-            error: { duration: 5000 }, // Ошибки показываем дольше
-            style: {
-              background: "rgba(30, 41, 59, 0.98)", // slate-800 с прозрачностью
-              color: "#fff",
-              minWidth: "400px",
-              maxWidth: "700px",
-              whiteSpace: "nowrap",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-          }}
-        />
-      </body>
-    </html>
-  );
+                            {/* Основная навигация */}
+                            <nav className="flex gap-6 flex-1">
+                                <Link
+                                    href="/"
+                                    className="font-medium transition-colors hover:opacity-80"
+                                    style={{ color: 'var(--color-grey-600)' }}
+                                >
+                                    Каталог
+                                </Link>
+                                <Link
+                                    href="/admin"
+                                    className="font-medium transition-colors hover:opacity-80"
+                                    style={{ color: 'var(--color-grey-600)' }}
+                                >
+                                    Управление товарами
+                                </Link>
+                            </nav>
+
+                            {/*
+                ThemeToggle — кнопка переключения светлой / тёмной темы.
+                Клиентский компонент; использует useTheme() из ThemeContext,
+                который предоставляется ThemeProvider-обёрткой выше.
+              */}
+                            <ThemeToggle />
+                        </div>
+                    </header>
+
+                    {/*
+            Основная область контента страницы.
+            container mx-auto ограничивает ширину по breakpoint-ам Tailwind
+            и центрирует содержимое на широких экранах.
+          */}
+                    <main className="container mx-auto px-4 py-10">
+                        {children}
+                    </main>
+
+                    {/*
+            Toaster — контейнер для всплывающих уведомлений react-hot-toast.
+            Рендерится через портал за пределами дерева компонентов.
+            position здесь — дефолт для новых тостов; toaster.css переопределяет
+            фактическую позицию контейнера через CSS.
+
+            Стили тостов используют CSS-переменные напрямую, поэтому они
+            автоматически адаптируются к текущей теме без JavaScript.
+          */}
+                    <Toaster
+                        position="top-center"
+                        toastOptions={{
+                            duration: 3000,
+                            success: { duration: 3000 },
+                            error: { duration: 5000 }, // Ошибки показываем дольше
+                            style: {
+                                // CSS-переменные работают в inline-стилях: браузер
+                                // подставит актуальные значения для текущей темы.
+                                background: 'var(--color-grey-100)',
+                                color: 'var(--color-grey-800)',
+                                border: '1px solid var(--color-grey-200)',
+                                minWidth: '400px',
+                                maxWidth: '700px',
+                                whiteSpace: 'nowrap',
+                            },
+                        }}
+                    />
+                </ThemeProvider>
+            </body>
+        </html>
+    );
 }
