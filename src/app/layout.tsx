@@ -15,6 +15,7 @@
  *         <header>        ← навигация + кнопка переключения темы (sticky)
  *         <main>          ← контент страницы (сюда попадает children)
  *         <Toaster>       ← всплывающие уведомления (react-hot-toast)
+ *         <ScrollToTop>   ← плавающая кнопка "↑" (появляется после 400px скролла)
  *       </ThemeProvider>
  *     </body>
  *   </html>
@@ -26,6 +27,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import Link from 'next/link';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { NavLinks } from '@/components/NavLinks';
+import { ScrollToTop } from '@/components/ScrollToTop';
 import './globals.css';
 import '@/styles/toaster.css';
 
@@ -139,11 +142,25 @@ export default function RootLayout({
                             borderColor: 'var(--header-border)',
                         }}
                     >
-                        <div className="container mx-auto px-4 py-3.5 flex items-center justify-between gap-4">
-                            {/* Логотип — ссылка на главную страницу */}
+                        {/*
+                            Трёхколонная раскладка шапки:
+                            [Логотип] [Навигация по центру] [ThemeToggle]
+
+                            Использует justify-between для того, чтобы логотип
+                            был строго слева, а ThemeToggle — строго справа.
+                            Навигация (flex-1 + justify-center) занимает всё
+                            пространство между ними и центрирует ссылки.
+
+                            Адаптивность:
+                            - gap-2 sm:gap-4 — уменьшаем отступы на мобильных
+                            - NavLinks сам сокращает подписи на мобильных
+                        */}
+                        <div className="container mx-auto px-4 py-3.5 flex items-center justify-between gap-2 sm:gap-4">
+
+                            {/* Логотип — ссылка на главную страницу. flex-shrink-0 предотвращает сжатие */}
                             <Link
                                 href="/"
-                                className="text-xl font-bold tracking-tight transition-colors"
+                                className="text-xl font-bold tracking-tight transition-colors shrink-0"
                                 style={{
                                     color: 'var(--color-grey-800)',
                                 }}
@@ -151,30 +168,27 @@ export default function RootLayout({
                                 🛒 FreshLife
                             </Link>
 
-                            {/* Основная навигация */}
-                            <nav className="flex gap-6 flex-1">
-                                <Link
-                                    href="/"
-                                    className="font-medium transition-colors hover:opacity-80"
-                                    style={{ color: 'var(--color-grey-600)' }}
-                                >
-                                    Каталог
-                                </Link>
-                                <Link
-                                    href="/admin"
-                                    className="font-medium transition-colors hover:opacity-80"
-                                    style={{ color: 'var(--color-grey-600)' }}
-                                >
-                                    Управление товарами
-                                </Link>
+                            {/*
+                                Основная навигация.
+
+                                flex-1 — занимает всё доступное пространство между лого и ThemeToggle.
+                                justify-center — центрирует ссылки внутри этого пространства.
+                                Ссылки-пилюли с активной подсветкой рендерит NavLinks (клиентский компонент),
+                                который использует usePathname() для определения текущего маршрута.
+                            */}
+                            <nav className="flex flex-1 items-center justify-center gap-1 sm:gap-2">
+                                <NavLinks />
                             </nav>
 
                             {/*
-                ThemeToggle — кнопка переключения светлой / тёмной темы.
-                Клиентский компонент; использует useTheme() из ThemeContext,
-                который предоставляется ThemeProvider-обёрткой выше.
-              */}
-                            <ThemeToggle />
+                                ThemeToggle — кнопка переключения светлой / тёмной темы.
+                                Клиентский компонент; использует useTheme() из ThemeContext,
+                                который предоставляется ThemeProvider-обёрткой выше.
+                                flex-shrink-0 предотвращает сжатие кнопки на узких экранах.
+                            */}
+                            <div className="shrink-0">
+                                <ThemeToggle />
+                            </div>
                         </div>
                     </header>
 
@@ -214,6 +228,23 @@ export default function RootLayout({
                             },
                         }}
                     />
+
+                    {/*
+                        ScrollToTop — глобальная плавающая кнопка «↑».
+
+                        Размещена здесь (в layout), а не на отдельных страницах,
+                        потому что нужна на всех маршрутах: каталог, admin и любых
+                        будущих страницах.
+
+                        Позиция: bottom-6 right-6 на всех экранах.
+                        FAB на /admin удалён — кнопка "+" там теперь всегда
+                        в шапке страницы, поэтому перекрытий нет.
+
+                        Логика связки на /admin:
+                          Пользователь листает список → нажимает "↑" →
+                          оказывается у кнопки "+ Добавить товар" в верху страницы.
+                    */}
+                    <ScrollToTop />
                 </ThemeProvider>
             </body>
         </html>
