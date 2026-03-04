@@ -3,15 +3,72 @@
  *
  * GET    /api/products/[id]  — получение одного товара
  * PUT    /api/products/[id]  — частичное обновление товара (только переданные поля)
- * DELETE /api/products/[id]  — удаление товара
+ * DELETE /api/products/[id]  — удаление товара (вместе с файлом изображения)
  *
  * Важно: в Next.js 15+ параметр params является Promise!
  * Его необходимо await-ить перед использованием. Это изменение связано с
  * переходом Next.js на асинхронные API для более эффективного SSR.
+ *
+ * ── Работа с файлами изображений ─────────────────────────────────────────────
+ * При удалении товара (DELETE) и при смене изображения (PUT) файл автоматически
+ * удаляется с диска, если его URL начинается с "/uploads/" — то есть файл был
+ * загружен через /api/upload и хранится в public/uploads/.
+ *
+ * Внешние URL (https://...) и пути от сидовых данных (/products/apple.jpg) НЕ
+ * удаляются — функция deleteUploadedFile проверяет префикс "/uploads/" перед
+ * любым обращением к файловой системе.
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { unlink } from "fs/promises";
+import path from "path";
 import { prisma } from "@/lib/prisma";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Вспомогательные функции
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Удаляет файл изображения с диска, если он был загружен через /api/upload.
+ *
+ * Безопасность:
+ *   - Проверяем префикс "/uploads/" — не трогаем внешние URL и другие пути
+ *   - Нормализуем путь через path.join, чтобы исключить directory traversal
+ *     (например, "/uploads/../secret.txt" превратится в корректный путь внутри public/)
+ *   - Ошибка удаления не является критической: если файл уже удалён вручную или
+ *     никогда не существовал — просто логируем предупреждение и продолжаем работу
+ *
+ * @param imageUrl — значение поля imageUrl из БД (может быть null или пустой строкой)
+ */
+async function deleteUploadedFile(imageUrl: string | null | undefined): Promise<void> {
+  // Пропускаем пустые значения и внешние URL (https://, http://, /products/ и т.д.)
+  if (!imageUrl || !imageUrl.startsWith("/uploads/")) {
+    return;
+  }
+
+  try {
+    // Извлекаем имя файла из URL ("/uploads/filename.jpg" → "filename.jpg")
+    // и строим абсолютный путь к файлу на диске
+    const filename = path.basename(imageUrl);
+
+    // path.join защищает от path traversal: даже если filename содержит "../",
+    // результат будет ограничен папкой public/uploads/
+    const filePath = path.join(process.cwd(), "public", "uploads", filename);
+
+    await unlink(filePath);
+    console.log(`🗑️  Удалён файл изображения: ${filePath}`);
+  } catch (err: unknown) {
+    // ENOENT — файл не найден (уже удалён или никогда не существовал).
+    // Это не ошибка с точки зрения бизнес-логики — товар всё равно должен удалиться.
+    if (err instanceof Error && (err as NodeJS.ErrnoException).code === "ENOENT") {
+      console.warn(`⚠️  Файл изображения не найден (пропускаем): ${imageUrl}`);
+    } else {
+      // Любую другую ошибку (нет прав, диск недоступен и т.д.) логируем,
+      // но НЕ пробрасываем — удаление товара из БД не должно зависеть от файловой системы
+      console.error(`⚠️  Не удалось удалить файл изображения "${imageUrl}":`, err);
+    }
+  }
+}
 
 /**
  * Тип параметров динамического сегмента [id].
@@ -110,6 +167,14 @@ export async function PUT(
       );
     }
 
+    // Получаем текущее изображение товара ДО обновления, чтобы потом удалить
+    // старый файл, если пользователь загрузил новый или убрал изображение совсем.
+    // Используем select, а не findUnique — читаем только нужное поле (экономия трафика).
+    const existingForUpdate = await prisma.product.findUnique({
+      where: { id },
+      select: { imageUrl: true },
+    });
+
     const product = await prisma.product.update({
       where: { id },
       data: {
@@ -125,6 +190,18 @@ export async function PUT(
       },
       include: { category: true },
     });
+
+    // Удаляем старый файл с диска, если выполнены оба условия:
+    //   1. imageUrl был передан в запросе (пользователь явно меняет поле)
+    //   2. Новый URL отличается от старого (не просто повторное сохранение того же файла)
+    // Удаляем ПОСЛЕ успешного обновления БД — не хотим потерять файл, если update упал
+    if (
+      imageUrl !== undefined &&
+      existingForUpdate?.imageUrl &&
+      existingForUpdate.imageUrl !== (imageUrl || null)
+    ) {
+      await deleteUploadedFile(existingForUpdate.imageUrl);
+    }
 
     return NextResponse.json(product);
   } catch (error) {
@@ -173,13 +250,25 @@ export async function DELETE(
     // Явная проверка существования перед удалением даёт более понятный ответ клиенту.
     // Без этого шага Prisma выбросила бы ошибку "Record to delete does not exist",
     // которую пришлось бы парсить в catch-блоке.
-    const existing = await prisma.product.findUnique({ where: { id } });
+    // Запрашиваем также imageUrl, чтобы после удаления из БД удалить файл с диска.
+    const existing = await prisma.product.findUnique({
+      where: { id },
+      select: { id: true, imageUrl: true },
+    });
+
     if (!existing) {
       return NextResponse.json({ error: "Товар не найден" }, { status: 404 });
     }
 
     // Prisma автоматически удалит связанные OrderItem (onDelete: Cascade в schema.prisma)
     await prisma.product.delete({ where: { id } });
+
+    // Удаляем файл изображения с диска ПОСЛЕ успешного удаления из БД.
+    // Порядок важен: если сначала удалить файл, а потом упадёт delete из БД —
+    // товар останется в базе со сломанной ссылкой на изображение.
+    // При обратном порядке: если удаление файла не удастся — товар уже удалён из БД,
+    // а "висячий" файл в uploads/ не критичен (занимает место, но не ломает UI).
+    await deleteUploadedFile(existing.imageUrl);
 
     return NextResponse.json({ success: true, message: "Товар удалён" });
   } catch (error) {
