@@ -25,6 +25,7 @@ import { Toaster } from 'react-hot-toast';
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NavLinks } from '@/components/NavLinks';
@@ -157,15 +158,24 @@ export default function RootLayout({
                         */}
                         <div className="container mx-auto px-4 py-3.5 flex items-center justify-between gap-2 sm:gap-4">
 
-                            {/* Логотип — ссылка на главную страницу. flex-shrink-0 предотвращает сжатие */}
+                            {/* Логотип + название — ссылка на главную страницу */}
                             <Link
                                 href="/"
-                                className="text-xl font-bold tracking-tight transition-colors shrink-0"
-                                style={{
-                                    color: 'var(--color-grey-800)',
-                                }}
+                                className="shrink-0 flex items-center gap-2 transition-opacity hover:opacity-80"
+                                aria-label="FreshLife — на главную"
                             >
-                                🛒 FreshLife
+                                <Image
+                                    src="/logo.png"
+                                    alt=""
+                                    width={120}
+                                    height={44}
+                                    priority
+                                    className="h-8 sm:h-10 w-auto object-contain mix-blend-multiply dark:mix-blend-normal dark:brightness-0 dark:invert"
+                                />
+                                <span className="text-lg sm:text-xl font-bold tracking-tight leading-none select-none">
+                                    <span style={{ color: 'var(--color-grey-800)' }}>Fresh</span>
+                                    <span style={{ color: 'var(--color-green-700)' }}>Life</span>
+                                </span>
                             </Link>
 
                             {/*
