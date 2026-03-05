@@ -84,10 +84,42 @@ function parseFilters(request: NextRequest): ProductFilters {
   return {
     // Если параметр не передан — undefined (фильтр не применяется)
     categoryId: searchParams.get("categoryId") ?? undefined,
-    search: searchParams.get("search") ?? undefined,
+    // trim() убирает случайные пробелы по краям строки запроса
+    search: searchParams.get("search")?.trim() || undefined,
     sortBy: safeSortBy,
     sortOrder: safeSortOrder,
   };
+}
+
+/**
+ * Выполняет регистронезависимую фильтрацию товаров по строке поиска.
+ *
+ * ПОЧЕМУ НЕ mode: "insensitive" В PRISMA?
+ * ─────────────────────────────────────────
+ * Prisma поддерживает `mode: "insensitive"` ТОЛЬКО для PostgreSQL и MongoDB.
+ * При использовании с SQLite (наш провайдер) Prisma 5.x бросает ошибку:
+ *   "The current connector does not support case insensitive queries."
+ * Это и было причиной "Не удалось загрузить товары" при попытке поиска.
+ *
+ * ПОЧЕМУ JAVASCRIPT, А НЕ RAW SQL?
+ * ─────────────────────────────────
+ * Вариант с `prisma.$queryRaw` и `WHERE LOWER(name) LIKE LOWER(?)` тоже работает,
+ * но теряет типобезопасность Prisma и усложняет код.
+ * Для SQLite-каталога (тысячи строк, не миллионы) JS-фильтрация незначительно
+ * медленнее, но значительно проще в поддержке.
+ *
+ * toLowerCase() корректно обрабатывает и кириллицу, и латиницу, и смешанный регистр.
+ */
+function applySearchFilter<T extends { name: string }>(
+  products: T[],
+  search: string | undefined
+): T[] {
+  // Если строка поиска пустая — возвращаем все товары без изменений
+  if (!search) return products;
+
+  // Приводим оба операнда к нижнему регистру для сравнения без учёта регистра
+  const query = search.toLowerCase();
+  return products.filter((p) => p.name.toLowerCase().includes(query));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,7 +131,7 @@ function parseFilters(request: NextRequest): ProductFilters {
  *
  * Возвращает список товаров. Поддерживает:
  * - ?categoryId=<id>      фильтр по категории
- * - ?search=<строка>      поиск по названию (регистронезависимый)
+ * - ?search=<строка>      поиск по названию (регистронезависимый, включая кириллицу)
  * - ?sortBy=<поле>        сортировка: name | price | createdAt | inStock
  * - ?sortOrder=asc|desc   направление сортировки
  *
@@ -111,29 +143,26 @@ export async function GET(request: NextRequest) {
 
     // Строим объект where динамически: добавляем только те условия,
     // которые действительно переданы. Пустой where {} = все товары.
-    const where: {
-      categoryId?: string;
-      name?: { contains: string; mode: "insensitive" };
-    } = {};
+    // Поиск по имени здесь НЕ применяется — он выполняется в JS ниже.
+    const where: { categoryId?: string } = {};
 
     if (categoryId) {
       where.categoryId = categoryId;
     }
 
-    if (search) {
-      // mode: "insensitive" работает нативно в PostgreSQL.
-      // В SQLite Prisma игнорирует этот флаг, но LIKE всё равно
-      // нечувствителен к регистру для ASCII-символов.
-      where.name = { contains: search, mode: "insensitive" };
-    }
-
-    const products = await prisma.product.findMany({
+    // Шаг 1: Запрашиваем из БД товары с фильтром по категории и нужной сортировкой.
+    // include подгружает связанный объект category в каждый товар,
+    // чтобы фронтенд мог отображать название категории без дополнительного запроса.
+    const allProducts = await prisma.product.findMany({
       where,
       orderBy: { [sortBy]: sortOrder },
-      // include подгружает связанный объект category в каждый товар,
-      // чтобы фронтенд мог отображать название категории без дополнительного запроса.
       include: { category: true },
     });
+
+    // Шаг 2: Применяем поиск по имени в JavaScript — регистронезависимо,
+    // корректно для кириллицы и латиницы.
+    // Если search не задан — возвращаем все товары без изменений.
+    const products = applySearchFilter(allProducts, search);
 
     return NextResponse.json(products);
   } catch (error) {

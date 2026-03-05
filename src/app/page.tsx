@@ -1,122 +1,61 @@
 /**
  * Главная страница — витрина каталога продуктов.
  *
- * Страница является клиентским компонентом ('use client'), потому что:
- * - управляет локальным состоянием фильтров и списка товаров
- * - выполняет fetch к API при изменении фильтров (useEffect/useCallback)
- * - управляет состоянием пагинации (currentPage)
+ * АРХИТЕКТУРА (после декомпозиции):
  *
- * Поток данных:
- *   Пользователь меняет фильтр → обновляется state → срабатывает useEffect →
- *   вызывается fetchProducts → обновляется список товаров → ре-рендер →
- *   пагинация нарезает products на страницы → рендерится текущая страница
+ *   page.tsx  ←  useFilters  (управляет состоянием фильтров)
+ *             ←  useProducts (загружает товары из API с debounce-поиском)
  *
- * Пагинация:
- *   Выполняется на стороне клиента (slice массива) — все товары уже загружены,
- *   разбиение на страницы лишь ограничивает количество DOM-узлов на экране.
- *   При смене фильтра currentPage автоматически сбрасывается в 1.
+ *   Компонент намеренно минимален — он только:
+ *     1. Подключает хуки и передаёт им параметры
+ *     2. Вычисляет данные пагинации (slice массива)
+ *     3. Рендерит UI из готовых дочерних компонентов
  *
- * Компоненты:
- *   ProductFilters — панель фильтров (категория, поиск, сортировка)
- *   ProductCard    — карточка одного товара
- *   Pagination     — адаптивная пагинация
+ *   Вся логика работы с состоянием вынесена в useFilters,
+ *   вся логика работы с API — в useProducts.
+ *
+ * ПОТОК ДАННЫХ:
+ *   Пользователь → useFilters (обновляет фильтры, сбрасывает страницу)
+ *               → useProducts (debounce → fetch → массив товаров)
+ *               → компонент нарезает массив на страницы и рендерит
+ *
+ * ПАГИНАЦИЯ:
+ *   Клиентская: все товары уже загружены, slice() ограничивает DOM-узлы.
+ *   При смене фильтра useFilters автоматически сбрасывает currentPage в 1.
  */
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductFilters } from "@/components/ProductFilters";
 import { Pagination } from "@/components/Pagination";
-import type { Product, Category } from "@/types";
+import { useFilters } from "@/hooks/useFilters";
+import { useProducts } from "@/hooks/useProducts";
+import type { Category } from "@/types";
 
 /**
  * Количество товаров на одной странице.
- *
- * Выбрано значение 12 из соображений UX:
- * - Делится на 2, 3, 4 и 6 — заполняет все варианты адаптивной сетки целыми рядами:
- *     xl (5 колонок) → 3 ряда (последний неполный, что нормально)
- *     lg (4 колонки) → 3 полных ряда
- *     md (3 колонки) → 4 полных ряда
- *     sm (2 колонки) → 6 рядов (комфортно на планшете)
- *     xs (1 колонка) → 12 карточек (чуть длинно, но с пагинацией не скучно листать)
- * - Стандарт e-commerce: Amazon, Wildberries, Ozon используют кратные 12 значения
+ * 12 делится на 2, 3, 4 и 6 — заполняет все варианты адаптивной сетки
+ * целыми рядами: xl(5 кол.)→3 ряда, lg(4)→3, md(3)→4, sm(2)→6.
  */
 const ITEMS_PER_PAGE = 12;
 
 export default function Home() {
-  // ── Данные ────────────────────────────────────────────────────────────────
-  /** Полный список товаров, соответствующих текущим фильтрам */
-  const [products, setProducts] = useState<Product[]>([]);
+  // ── Загрузка категорий ─────────────────────────────────────────────────────
+  // Категории загружаются один раз — они не меняются динамически.
   const [categories, setCategories] = useState<Category[]>([]);
 
-  // ── Состояния UI ──────────────────────────────────────────────────────────
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // ── Состояния фильтров ────────────────────────────────────────────────────
-  /** Пустая строка = "все категории" (фильтр не применяется) */
-  const [categoryId, setCategoryId] = useState("");
-  const [sortBy, setSortBy] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
-  const [search, setSearch] = useState("");
-
-  // ── Состояние пагинации ───────────────────────────────────────────────────
-  /** Текущая страница (1-based). Сбрасывается при смене фильтров. */
-  const [currentPage, setCurrentPage] = useState(1);
-
-  /**
-   * Загружает товары с учётом текущих фильтров.
-   *
-   * Обёрнут в useCallback, чтобы функция не пересоздавалась на каждый рендер.
-   * Зависимости [categoryId, sortBy, sortOrder, search] — функция обновляется
-   * только при изменении фильтров, что корректно запускает useEffect ниже.
-   */
-  const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Строим строку запроса только из ненулевых параметров
-      const params = new URLSearchParams();
-      if (categoryId) params.set("categoryId", categoryId);
-      params.set("sortBy", sortBy);
-      params.set("sortOrder", sortOrder);
-      if (search) params.set("search", search);
-
-      const res = await fetch(`/api/products?${params.toString()}`);
-
-      if (!res.ok) {
-        throw new Error("Не удалось загрузить товары");
-      }
-
-      const data = await res.json();
-      // Защита от неожиданного формата ответа: всегда работаем с массивом
-      setProducts(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-      setProducts([]);
-      setError("Не удалось загрузить товары. Попробуйте обновить страницу.");
-    } finally {
-      // finally гарантирует сброс loading даже при ошибке
-      setLoading(false);
-    }
-  }, [categoryId, sortBy, sortOrder, search]);
-
-  /**
-   * Загружает список категорий один раз при монтировании страницы.
-   * Категории не меняются динамически, поэтому нет смысла перезагружать их.
-   * Пустой массив зависимостей [] = эффект запускается только при монтировании.
-   */
   useEffect(() => {
     const loadCategories = async () => {
       try {
         const res = await fetch("/api/categories");
         if (!res.ok) throw new Error("Ошибка загрузки категорий");
-        const data = await res.json();
-        setCategories(Array.isArray(data) ? data : []);
+        const data: unknown = await res.json();
+        // Защита: если API вернёт не массив — не падаем, просто скрываем фильтр
+        setCategories(Array.isArray(data) ? (data as Category[]) : []);
       } catch (err) {
         console.error(err);
-        // Ошибка категорий не критична — каталог работает без фильтра
+        // Ошибка категорий не критична — каталог работает без фильтра по категории
         setCategories([]);
       }
     };
@@ -124,28 +63,32 @@ export default function Home() {
     loadCategories();
   }, []);
 
-  /**
-   * Перезагружает товары при любом изменении фильтров.
-   * Так как fetchProducts создан через useCallback с зависимостями,
-   * этот эффект сработает при изменении categoryId / sortBy / sortOrder / search.
-   */
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  // ── Состояние фильтров ─────────────────────────────────────────────────────
+  // useFilters хранит все параметры фильтрации и пагинации.
+  // При изменении категории / сортировки / поиска автоматически сбрасывает
+  // currentPage в 1, чтобы пользователь видел результаты с начала.
+  const {
+    categoryId,
+    setCategoryId,
+    sortBy,
+    sortOrder,
+    handleSortChange,
+    search,
+    setSearch,
+    currentPage,
+    setCurrentPage,
+  } = useFilters();
 
-  /**
-   * Сбрасывает пагинацию на первую страницу при изменении любого фильтра.
-   *
-   * Почему отдельный эффект, а не внутри fetchProducts:
-   * - fetchProducts уже делает своё дело (загрузка данных), смешивать с UI-логикой плохо
-   * - При последующих вызовах fetchProducts (например, обновление списка) сброс не нужен
-   *
-   * Зависимости совпадают с зависимостями fetchProducts — сброс происходит синхронно
-   * с запросом новых данных, поэтому пользователь никогда не видит "пустую" страницу.
-   */
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [categoryId, sortBy, sortOrder, search]);
+  // ── Загрузка товаров ───────────────────────────────────────────────────────
+  // useProducts принимает параметры фильтров и возвращает загруженные товары.
+  // Поиск внутри хука debounce'd: запрос уходит только после паузы 300 мс,
+  // а не на каждое нажатие клавиши.
+  const { products, loading, error } = useProducts({
+    categoryId,
+    sortBy,
+    sortOrder,
+    search,
+  });
 
   // ── Вычисляемые значения пагинации ────────────────────────────────────────
 
@@ -166,35 +109,39 @@ export default function Home() {
   );
 
   /**
-   * Диапазон порядковых номеров товаров для строки "Показано X–Y из Z".
-   * Помогает пользователю понять, где он находится в общем списке.
+   * Диапазон порядковых номеров для строки "Показано X–Y из Z".
+   * firstItem: номер первого товара на странице (1-based)
+   * lastItem:  номер последнего товара на странице
    */
-  const firstItem = products.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const firstItem =
+    products.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
   const lastItem = Math.min(currentPage * ITEMS_PER_PAGE, products.length);
 
   /**
    * Обработчик смены страницы.
-   *
-   * После смены страницы плавно прокручиваем в начало страницы, чтобы
-   * пользователь видел новые товары, а не оставался внизу.
-   * Это стандартное UX-поведение в e-commerce (Ozon, Wildberries).
+   * После смены прокручиваем в начало — стандартное UX-поведение e-commerce.
    */
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // ── Рендер ────────────────────────────────────────────────────────────────
+
   return (
-    // animate-fade-in — кастомная анимация из globals.css (плавное появление страницы)
+    // animate-fade-in — кастомная анимация из globals.css (плавное появление)
     <div className="animate-fade-in">
       <h1
         className="text-3xl font-bold mb-8 tracking-tight"
-        style={{ color: 'var(--color-grey-800)' }}
+        style={{ color: "var(--color-grey-800)" }}
       >
         Каталог продуктов
       </h1>
 
-      {/* Панель фильтров: получает текущее состояние и колбэки для обновления */}
+      {/*
+        Панель фильтров: только принимает текущее состояние и колбэки.
+        Сам компонент "тупой" — никакой логики, только UI.
+      */}
       <ProductFilters
         categories={categories}
         selectedCategory={categoryId}
@@ -202,44 +149,41 @@ export default function Home() {
         sortOrder={sortOrder}
         search={search}
         onCategoryChange={setCategoryId}
-        onSortChange={(s, o) => {
-          setSortBy(s);
-          setSortOrder(o);
-        }}
+        onSortChange={handleSortChange}
         onSearchChange={setSearch}
       />
 
       {/* Область результатов: три взаимоисключающих состояния */}
       {loading ? (
-        // Состояние загрузки
+        // Состояние загрузки — animate-pulse создаёт пульсирующий эффект
         <div
           className="text-center py-16 text-lg"
-          style={{ color: 'var(--color-grey-500)' }}
+          style={{ color: "var(--color-grey-500)" }}
         >
           <span className="inline-block animate-pulse">Загрузка...</span>
         </div>
       ) : error ? (
-        // Состояние ошибки — использует переменные красного цвета из дизайн-системы
+        // Состояние ошибки — использует красные CSS-переменные из дизайн-системы
         <div
           className="text-center py-16 rounded-2xl"
           style={{
-            color: 'var(--color-red-700)',
-            background: 'var(--color-red-100)',
-            border: '1px solid var(--color-red-700)',
-            boxShadow: 'var(--shadow-soft)',
+            color: "var(--color-red-700)",
+            background: "var(--color-red-100)",
+            border: "1px solid var(--color-red-700)",
+            boxShadow: "var(--shadow-soft)",
           }}
         >
           {error}
         </div>
       ) : products.length === 0 ? (
-        // Пустой результат (фильтр не нашёл товаров)
+        // Пустой результат: фильтр применён, но товаров нет
         <div
           className="text-center py-16 rounded-2xl"
           style={{
-            color: 'var(--color-grey-500)',
-            background: 'var(--card-bg)',
-            border: '1px solid var(--card-border)',
-            boxShadow: 'var(--shadow-soft)',
+            color: "var(--color-grey-500)",
+            background: "var(--card-bg)",
+            border: "1px solid var(--card-border)",
+            boxShadow: "var(--shadow-soft)",
           }}
         >
           Товары не найдены
@@ -247,38 +191,44 @@ export default function Home() {
       ) : (
         <>
           {/*
-            Строка-счётчик "Показано X–Y из Z товаров".
-
-            Помогает пользователю понять своё положение в общем каталоге.
-            Отображается только когда есть несколько страниц (totalPages > 1)
-            — при малом количестве товаров счётчик избыточен.
+            Счётчик "Показано X–Y из Z товаров".
+            Отображается только при нескольких страницах — при одной странице
+            счётчик избыточен и захламляет UI.
           */}
           {totalPages > 1 && (
             <div
               className="flex justify-between items-center mb-4 text-sm"
-              style={{ color: 'var(--color-grey-500)' }}
+              style={{ color: "var(--color-grey-500)" }}
             >
-              {/* Левая часть: диапазон товаров */}
+              {/* Левая часть: диапазон товаров на текущей странице */}
               <span>
-                Показано{' '}
-                <span style={{ color: 'var(--color-grey-700)', fontWeight: 500 }}>
+                Показано{" "}
+                <span
+                  style={{ color: "var(--color-grey-700)", fontWeight: 500 }}
+                >
                   {firstItem}–{lastItem}
-                </span>{' '}
-                из{' '}
-                <span style={{ color: 'var(--color-grey-700)', fontWeight: 500 }}>
+                </span>{" "}
+                из{" "}
+                <span
+                  style={{ color: "var(--color-grey-700)", fontWeight: 500 }}
+                >
                   {products.length}
-                </span>{' '}
+                </span>{" "}
                 товаров
               </span>
 
-              {/* Правая часть: номер страницы */}
+              {/* Правая часть: текущая и общая страница (скрыта на мобильных) */}
               <span className="hidden sm:block">
-                Страница{' '}
-                <span style={{ color: 'var(--color-grey-700)', fontWeight: 500 }}>
+                Страница{" "}
+                <span
+                  style={{ color: "var(--color-grey-700)", fontWeight: 500 }}
+                >
                   {currentPage}
-                </span>{' '}
-                из{' '}
-                <span style={{ color: 'var(--color-grey-700)', fontWeight: 500 }}>
+                </span>{" "}
+                из{" "}
+                <span
+                  style={{ color: "var(--color-grey-700)", fontWeight: 500 }}
+                >
                   {totalPages}
                 </span>
               </span>
@@ -287,35 +237,20 @@ export default function Home() {
 
           {/*
             Адаптивная сетка товаров.
-
-            Breakpoints и количество колонок:
-              xs  (< 640px)  : 1 колонка  — телефоны в портретной ориентации
-              sm  (≥ 640px)  : 2 колонки  — телефоны в альбомной / маленькие планшеты
-              md  (≥ 768px)  : 3 колонки  — планшеты
-              lg  (≥ 1024px) : 4 колонки  — ноутбуки
-              xl  (≥ 1280px) : 5 колонок  — широкие экраны
-
-            При ITEMS_PER_PAGE = 12:
-              lg (4 кол.) → 3 полных ряда — идеальное заполнение
-              md (3 кол.) → 4 полных ряда — хорошо
-              sm (2 кол.) → 6 рядов       — комфортно
-
-            Рендерим paginatedProducts (срез текущей страницы), а не весь массив.
+            Breakpoints: xs(1 кол.) → sm(2) → md(3) → lg(4) → xl(5).
+            Рендерим paginatedProducts (срез страницы), а не весь массив products,
+            чтобы не создавать лишние DOM-узлы.
           */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
             {paginatedProducts.map((product) => (
-              // key по уникальному id — обязателен для эффективного обновления DOM
+              // key по уникальному id — обязателен для эффективного diff алгоритма React
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
 
           {/*
             Компонент пагинации.
-
-            Передаём totalPages (вычислен из products.length) и currentPage.
-            handlePageChange сбрасывает страницу и скроллит к началу.
-
-            Pagination сам не рендерится при totalPages <= 1 — проверять здесь не нужно.
+            Pagination сам не рендерится при totalPages <= 1, проверять здесь не нужно.
           */}
           <Pagination
             currentPage={currentPage}
