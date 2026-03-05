@@ -1,12 +1,28 @@
-// Prisma schema for FreshLife - доставка продуктов питания
-// SQLite для простоты запуска на любом компьютере
+// Prisma schema for OzonFresh — доставка продуктов питания
+//
+// СТРАТЕГИЯ БАЗЫ ДАННЫХ:
+//   Локальная разработка  → SQLite (файл prisma/dev.db, не нужен интернет)
+//   Продакшен (Vercel)    → Turso (облачный libSQL, совместим с SQLite)
+//
+// Turso использует протокол libSQL — это форк SQLite с поддержкой сети.
+// Prisma подключается к нему через driverAdapters (previewFeature).
+// Схема данных одинакова для обоих режимов — менять модели не нужно.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // driverAdapters — экспериментальная функция Prisma, нужна для Turso.
+  // Без неё Prisma не умеет использовать внешние драйверы (@prisma/adapter-libsql).
+  // В Prisma 5.x это preview feature; в будущих версиях станет стабильной.
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
+  // "sqlite" подходит и для локального SQLite, и для Turso (libSQL — это SQLite-совместимый протокол).
+  // Менять провайдер на "postgresql" или другой НЕ нужно.
   provider = "sqlite"
+  // DATABASE_URL берётся из переменной окружения:
+  //   Локально (.env):  file:./dev.db
+  //   Vercel (env vars): libsql://your-db.turso.io?authToken=...
   url      = env("DATABASE_URL")
 }
 
