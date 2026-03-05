@@ -170,13 +170,69 @@ async function main() {
                 unit: 'шт',
                 imageUrl: '/products/cola.jpg',
             },
+
+            // ── Дополнительные 5 товаров ──────────────────────────────────────────
+            // Добавлены для того, чтобы при ITEMS_PER_PAGE=15 вторая страница
+            // содержала товары и пагинация отображалась.
+            // Без них все 15 товаров помещаются на одну страницу → пагинация скрыта.
+
+            {
+                // Картофель — самый популярный овощ, нельзя было не включить
+                name: 'Картофель',
+                description: 'Картофель мытый, 2 кг',
+                price: 79,
+                categoryId: catMap['fruits-vegetables'],
+                inStock: 120,
+                unit: 'кг',
+                imageUrl: '/products/potato.jpg',
+            },
+            {
+                // Масло сливочное — базовый продукт молочного раздела
+                name: 'Масло сливочное',
+                description: 'Масло 82.5% жирности, 200 г',
+                price: 159,
+                categoryId: catMap['dairy'],
+                inStock: 55,
+                unit: 'шт',
+                imageUrl: '/products/butter.jpg',
+            },
+            {
+                // Свинина — дополняет раздел мясо и птица
+                name: 'Свинина (шея)',
+                description: 'Свиная шея охлаждённая, 1 кг',
+                price: 389,
+                categoryId: catMap['meat-poultry'],
+                inStock: 20,
+                unit: 'кг',
+                imageUrl: '/products/pork.jpg',
+            },
+            {
+                // Чай — классический напиток, важная категория напитков
+                name: 'Чай чёрный',
+                description: 'Чай листовой, 100 г',
+                price: 119,
+                categoryId: catMap['beverages'],
+                inStock: 65,
+                unit: 'шт',
+                imageUrl: '/products/tea.jpg',
+            },
+            {
+                // Батон — ещё один хлебобулочный продукт первой необходимости
+                name: 'Батон нарезной',
+                description: 'Батон из пшеничной муки, 350 г',
+                price: 49,
+                categoryId: catMap['bakery'],
+                inStock: 50,
+                unit: 'шт',
+                imageUrl: '/products/loaf.jpg',
+            },
         ],
     });
 
     console.log(
         'Seed выполнен успешно! Создано категорий:',
         categories.length,
-        'и 15 товаров.',
+        'и 20 товаров.',
     );
 }
 
