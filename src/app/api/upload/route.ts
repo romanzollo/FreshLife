@@ -129,23 +129,26 @@ export async function POST(request: NextRequest) {
     // ── Подготовка пути для сохранения ────────────────────────────────────────
     const filename = generateFileName(file.name);
 
-    // process.cwd() в Next.js API-маршрутах всегда указывает на корень проекта.
-    // path.join(...) строит правильный путь для текущей ОС (Windows/Linux/Mac).
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    // На Vercel (serverless) файловая система read-only, кроме /tmp.
+    // Локально пишем в public/uploads/ (раздаётся Next.js как статика).
+    // На Vercel пишем в /tmp/uploads/ и отдаём через /api/uploads/[filename].
+    const isVercel = Boolean(process.env.VERCEL);
+    const uploadDir = isVercel
+      ? "/tmp/uploads"
+      : path.join(process.cwd(), "public", "uploads");
 
     // Создаём директорию, если она ещё не существует.
     // { recursive: true } — не выбрасывает ошибку, если папка уже есть.
     await mkdir(uploadDir, { recursive: true });
 
-    // ── Запись файла на диск ───────────────────────────────────────────────────
+    // ── Запись файла ───────────────────────────────────────────────────────────
     await writeFile(path.join(uploadDir, filename), buffer);
 
-    // Возвращаем URL относительно корня сайта.
-    // Next.js раздаёт public/uploads/foto.jpg как /uploads/foto.jpg — без /public/!
-    return NextResponse.json(
-      { url: `/uploads/${filename}` },
-      { status: 201 }
-    );
+    // На Vercel файл в /tmp/ отдаётся через /api/uploads/[filename].
+    // Локально файл в public/uploads/ отдаётся как статика /uploads/[filename].
+    const url = isVercel ? `/api/uploads/${filename}` : `/uploads/${filename}`;
+
+    return NextResponse.json({ url }, { status: 201 });
   } catch (error) {
     console.error("POST /api/upload:", error);
     return NextResponse.json(

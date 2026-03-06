@@ -1,8 +1,26 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaLibSQL } from '@prisma/adapter-libsql';
+import { createClient } from '@libsql/client';
 
-// Отдельный экземпляр PrismaClient для скрипта seed.
-// Здесь нам не нужен singleton, потому что скрипт выполняется один раз и завершает процесс.
-const prisma = new PrismaClient();
+// Создаём Prisma-клиент с поддержкой Turso:
+// если заданы TURSO_DATABASE_URL и TURSO_AUTH_TOKEN — используем адаптер (Turso),
+// иначе — стандартный SQLite (локальный файл prisma/dev.db).
+function createPrismaClient(): PrismaClient {
+    const tursoUrl   = process.env.TURSO_DATABASE_URL;
+    const tursoToken = process.env.TURSO_AUTH_TOKEN;
+
+    if (tursoUrl && tursoToken) {
+        const libsql  = createClient({ url: tursoUrl, authToken: tursoToken });
+        const adapter = new PrismaLibSQL(libsql);
+        console.log('Seed: подключение к Turso —', tursoUrl);
+        return new PrismaClient({ adapter });
+    }
+
+    console.log('Seed: подключение к локальному SQLite (prisma/dev.db)');
+    return new PrismaClient();
+}
+
+const prisma = createPrismaClient();
 
 // Основная функция сидирования БД тестовыми данными.
 async function main() {
