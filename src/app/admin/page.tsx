@@ -319,7 +319,7 @@ export default function AdminPage() {
             {paginatedProducts.map((product) => (
               <div key={product.id} className="relative group">
                 <ProductCard product={product} />
-                <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
+                <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 z-10">
                   <button
                     onClick={() => handleEdit(product)}
                     disabled={deletingId === product.id}

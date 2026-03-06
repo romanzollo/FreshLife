@@ -42,29 +42,34 @@ import { createClient } from "@libsql/client";
 /**
  * Определяем, какую БД использовать.
  *
- * ЛОКАЛЬНО:
- *   DATABASE_URL начинается с "file:" → всегда SQLite (prisma/dev.db). Быстро и офлайн.
- *   Даже если в .env есть TURSO_* (для seed-turso и т.п.), dev-сервер
- *   не подключается к облаку — иначе возможны 500 при сетевых сбоях.
+ * ЛОКАЛЬНО (NODE_ENV !== "production"):
+ *   Всегда используем SQLite (prisma/dev.db) через стандартный PrismaClient.
+ *   DATABASE_URL должен начинаться с "file:" (как в .env).
+ *   Даже если заданы TURSO_* или DATABASE_URL указывает на libsql:// — ИГНОРИРУЕМ
+ *   это в сервере разработки, чтобы не было "магического" подключения к облаку.
  *
- * ПРОДАКШЕН (Vercel, Turso):
+ * ПРОДАКШЕН (NODE_ENV === "production", Vercel):
  *   Используем Turso, когда:
  *     - задана TURSO_DATABASE_URL (основной вариант из DEPLOY.md), ИЛИ
  *     - DATABASE_URL начинается с "libsql://" (fallback, если настроили только её).
  *
  * Таким образом:
- *   - локальное поведение остаётся прежним,
- *   - на Vercel код умеет работать и с TURSO_DATABASE_URL, и только с DATABASE_URL=libsql://.
+ *   - локально: всегда надёжный SQLite-файл prisma/dev.db;
+ *   - на Vercel: Turso через адаптер PrismaLibSQL.
  */
 const dbUrl = process.env.DATABASE_URL ?? "";
 const isLocalSqlite = dbUrl.startsWith("file:");
+const isProd = process.env.NODE_ENV === "production";
 
-// URL для Turso: в приоритете TURSO_DATABASE_URL, иначе DATABASE_URL c libsql://.
+// URL для Turso в продакшене: в приоритете TURSO_DATABASE_URL,
+// иначе DATABASE_URL c libsql:// (если кто-то настроил только его).
 const tursoUrl =
   process.env.TURSO_DATABASE_URL ??
   (dbUrl.startsWith("libsql://") ? dbUrl : undefined);
 
-const isTurso = !isLocalSqlite && Boolean(tursoUrl);
+// В продакшене считаем, что работаем с Turso, только если есть tursoUrl.
+// В режиме разработки (dev-сервер) Turso никогда не используется.
+const isTurso = isProd && Boolean(tursoUrl);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Функция создания клиента

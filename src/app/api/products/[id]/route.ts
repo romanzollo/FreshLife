@@ -200,7 +200,14 @@ export async function PUT(
       existingForUpdate?.imageUrl &&
       existingForUpdate.imageUrl !== (imageUrl || null)
     ) {
-      await deleteUploadedFile(existingForUpdate.imageUrl);
+      // Удаление файла не должно задерживать ответ клиенту —
+      // выполняем его "в фоне", логируя возможную ошибку.
+      deleteUploadedFile(existingForUpdate.imageUrl).catch((err) => {
+        console.error(
+          '⚠️ Ошибка удаления старого файла изображения при обновлении товара:',
+          err
+        );
+      });
     }
 
     return NextResponse.json(product);
@@ -264,11 +271,14 @@ export async function DELETE(
     await prisma.product.delete({ where: { id } });
 
     // Удаляем файл изображения с диска ПОСЛЕ успешного удаления из БД.
-    // Порядок важен: если сначала удалить файл, а потом упадёт delete из БД —
-    // товар останется в базе со сломанной ссылкой на изображение.
-    // При обратном порядке: если удаление файла не удастся — товар уже удалён из БД,
-    // а "висячий" файл в uploads/ не критичен (занимает место, но не ломает UI).
-    await deleteUploadedFile(existing.imageUrl);
+    // Делаем это без await, чтобы потенциальные проблемы с файловой системой
+    // (например, на serverless-хостинге) не блокировали ответ клиенту.
+    deleteUploadedFile(existing.imageUrl).catch((err) => {
+      console.error(
+        '⚠️ Ошибка удаления файла изображения при удалении товара:',
+        err
+      );
+    });
 
     return NextResponse.json({ success: true, message: "Товар удалён" });
   } catch (error) {
