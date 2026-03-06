@@ -40,20 +40,22 @@ import { createClient } from "@libsql/client";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Проверяем, нужно ли использовать Turso.
+ * Определяем, какую БД использовать.
  *
- * Определяется по наличию TURSO_DATABASE_URL и TURSO_AUTH_TOKEN.
- * Если обе переменные заданы — используем Turso адаптер (облако).
- * Если не заданы — используем стандартный SQLite (файл prisma/dev.db).
+ * ЛОКАЛЬНО (DATABASE_URL начинается с "file:"):
+ *   Всегда используем SQLite — prisma/dev.db. Быстро, без сети, надёжно.
+ *   Даже если в .env есть TURSO_* (для seed-turso и т.п.), dev-сервер
+ *   не подключается к облаку — иначе возможны 500 при сетевых сбоях.
  *
- * Это позволяет:
- * - Локально работать с SQLite (не задавая TURSO_* в .env)
- * - Временно переключиться на Turso для сида (`npm run db:seed` с TURSO_* в .env)
- * - В продакшене на Vercel всегда использовать Turso (TURSO_* заданы в настройках)
+ * ПРОДАКШЕН (Vercel, NODE_ENV=production):
+ *   Используем Turso, когда заданы TURSO_DATABASE_URL и TURSO_AUTH_TOKEN.
+ *   На Vercel эти переменные заданы в Settings → Environment Variables.
  */
-const isTurso = Boolean(
-  process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN
-);
+const dbUrl = process.env.DATABASE_URL ?? "";
+const isLocalSqlite = dbUrl.startsWith("file:");
+const isTurso =
+  !isLocalSqlite &&
+  Boolean(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Функция создания клиента

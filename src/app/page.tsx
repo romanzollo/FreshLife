@@ -53,25 +53,12 @@ const ITEMS_PER_PAGE = 15;
 
 export default function Home() {
   // ── Загрузка категорий ─────────────────────────────────────────────────────
-  // Категории загружаются один раз — они не меняются динамически.
   const [categories, setCategories] = useState<Category[]>([]);
-
   useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const res = await fetch("/api/categories");
-        if (!res.ok) throw new Error("Ошибка загрузки категорий");
-        const data: unknown = await res.json();
-        // Защита: если API вернёт не массив — не падаем, просто скрываем фильтр
-        setCategories(Array.isArray(data) ? (data as Category[]) : []);
-      } catch (err) {
-        console.error(err);
-        // Ошибка категорий не критична — каталог работает без фильтра по категории
-        setCategories([]);
-      }
-    };
-
-    loadCategories();
+    fetch("/api/categories")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .catch(() => setCategories([]));
   }, []);
 
   // ── Состояние фильтров ─────────────────────────────────────────────────────

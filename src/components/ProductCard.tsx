@@ -54,7 +54,12 @@ export function ProductCard({ product }: ProductCardProps) {
           <img
             src={product.imageUrl}
             alt={product.name}
-            // group-hover:scale-105 — лёгкий zoom-эффект при наведении на карточку
+            // loading="lazy" — браузер откладывает загрузку изображений,
+            // которые находятся за пределами видимой области экрана.
+            // Ускоряет первоначальную отрисовку страницы — грузятся только
+            // видимые картинки, остальные подгружаются при прокрутке.
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
