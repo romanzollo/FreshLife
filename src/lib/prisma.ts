@@ -42,20 +42,29 @@ import { createClient } from "@libsql/client";
 /**
  * Определяем, какую БД использовать.
  *
- * ЛОКАЛЬНО (DATABASE_URL начинается с "file:"):
- *   Всегда используем SQLite — prisma/dev.db. Быстро, без сети, надёжно.
+ * ЛОКАЛЬНО:
+ *   DATABASE_URL начинается с "file:" → всегда SQLite (prisma/dev.db). Быстро и офлайн.
  *   Даже если в .env есть TURSO_* (для seed-turso и т.п.), dev-сервер
  *   не подключается к облаку — иначе возможны 500 при сетевых сбоях.
  *
- * ПРОДАКШЕН (Vercel, NODE_ENV=production):
- *   Используем Turso, когда заданы TURSO_DATABASE_URL и TURSO_AUTH_TOKEN.
- *   На Vercel эти переменные заданы в Settings → Environment Variables.
+ * ПРОДАКШЕН (Vercel, Turso):
+ *   Используем Turso, когда:
+ *     - задана TURSO_DATABASE_URL (основной вариант из DEPLOY.md), ИЛИ
+ *     - DATABASE_URL начинается с "libsql://" (fallback, если настроили только её).
+ *
+ * Таким образом:
+ *   - локальное поведение остаётся прежним,
+ *   - на Vercel код умеет работать и с TURSO_DATABASE_URL, и только с DATABASE_URL=libsql://.
  */
 const dbUrl = process.env.DATABASE_URL ?? "";
 const isLocalSqlite = dbUrl.startsWith("file:");
-const isTurso =
-  !isLocalSqlite &&
-  Boolean(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
+
+// URL для Turso: в приоритете TURSO_DATABASE_URL, иначе DATABASE_URL c libsql://.
+const tursoUrl =
+  process.env.TURSO_DATABASE_URL ??
+  (dbUrl.startsWith("libsql://") ? dbUrl : undefined);
+
+const isTurso = !isLocalSqlite && Boolean(tursoUrl);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Функция создания клиента
@@ -77,8 +86,11 @@ function createPrismaClient(): PrismaClient {
     // Локально: задаются в .env для сида / тестирования Turso
     // На Vercel: задаются в Settings → Environment Variables → Production
     const tursoClient = createClient({
-      url: process.env.TURSO_DATABASE_URL!,
-      authToken: process.env.TURSO_AUTH_TOKEN!,
+      // tursoUrl гарантированно определён, раз isTurso === true
+      url: tursoUrl as string,
+      // Для приватных баз токен обязателен; для публичных Turso-баз
+      // клиент может работать и без него.
+      authToken: process.env.TURSO_AUTH_TOKEN,
     });
 
     // Шаг 2: оборачиваем libSQL-клиент в адаптер Prisma.
