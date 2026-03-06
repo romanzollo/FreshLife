@@ -72,30 +72,33 @@ turso db tokens create ozonfresh
 
 ### 2.5 Залить схему и данные в Turso
 
-Временно добавь Turso в `.env` для выполнения команд:
+Убедись, что в `.env` заданы Turso-реквизиты (DATABASE_URL при этом не трогай — пусть остаётся `file:./dev.db`):
 
-```bash
-# В .env замени DATABASE_URL на Turso URL:
-# DATABASE_URL="libsql://ozonfresh-username.turso.io"
-# TURSO_DATABASE_URL="libsql://ozonfresh-username.turso.io"
-# TURSO_AUTH_TOKEN="твой-токен"
+```dotenv
+DATABASE_URL="file:./dev.db"
+TURSO_DATABASE_URL="libsql://твой-db.turso.io"
+TURSO_AUTH_TOKEN="твой-токен"
 ```
 
-Затем выполни:
+> **Почему `DATABASE_URL` остаётся `file:./dev.db`?**
+> Prisma CLI (`prisma db push`, `prisma generate`, `prisma migrate`) не поддерживает
+> прямое подключение к Turso через `libsql://`. Они всегда работают с локальным файлом.
+> Само приложение подключается к Turso через `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (адаптер).
+
+Залей схему (создаст таблицы в Turso):
 
 ```bash
-npx prisma db push
+npm run db:push:turso
+```
+
+Залей данные:
+
+```bash
 npm run db:seed
 ```
 
-После этого верни `.env` обратно к локальному SQLite:
-
-```
-DATABASE_URL="file:./dev.db"
-```
-
 > **Важно:** Данные в Turso сохраняются навсегда (не сбрасываются при деплое).
-> Если нужно сбросить — выполни `npm run db:reset` с Turso в `.env`.
+> Если нужно залить заново — удали базу в дашборде Turso и создай новую.
 
 ---
 
@@ -207,5 +210,10 @@ npm run db:reset   # сбросить и пересоздать локальну
 → Проверь что переменная `TURSO_AUTH_TOKEN` добавлена в Vercel (Settings → Environment Variables)
 → После добавления переменных нужно сделать Redeploy (Deployments → три точки → Redeploy)
 
+**Ошибка "the URL must start with the protocol file:" при db:seed или db:push**
+→ Убедись что `DATABASE_URL="file:./dev.db"` в `.env` — это значение не меняй
+→ Для Turso используй только `TURSO_DATABASE_URL` и `TURSO_AUTH_TOKEN`
+
 **Локально перестало работать после изменений**
 → Убедись что в `.env` стоит `DATABASE_URL="file:./dev.db"` (не Turso URL)
+→ Если хочешь работать с Turso локально — задай `TURSO_DATABASE_URL` и `TURSO_AUTH_TOKEN` в `.env`

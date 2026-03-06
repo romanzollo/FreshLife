@@ -20,10 +20,12 @@ datasource db {
   // "sqlite" подходит и для локального SQLite, и для Turso (libSQL — это SQLite-совместимый протокол).
   // Менять провайдер на "postgresql" или другой НЕ нужно.
   provider = "sqlite"
-  // DATABASE_URL берётся из переменной окружения:
-  //   Локально (.env):  file:./dev.db
-  //   Vercel (env vars): libsql://your-db.turso.io?authToken=...
-  url      = env("DATABASE_URL")
+  // URL захардкожен для локальной разработки и для работы Prisma CLI (db push, migrate, generate).
+  // Prisma CLI не поддерживает прямое подключение к Turso через libsql://.
+  // Для деплоя схемы в Turso используй: npm run db:push:turso
+  // Для продакшена на Vercel приложение подключается через адаптер (src/lib/prisma.ts),
+  // используя TURSO_DATABASE_URL и TURSO_AUTH_TOKEN — не этот URL.
+  url      = "file:./dev.db"
 }
 
 // Категория товара, например "Фрукты и овощи" или "Молочные продукты".
