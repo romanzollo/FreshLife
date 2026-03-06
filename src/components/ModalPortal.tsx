@@ -24,9 +24,25 @@ interface ModalPortalProps {
   children: React.ReactNode;
   /** Функция закрытия модалки. Вызывается при нажатии Escape или клике на backdrop */
   onClose?: () => void;
+  /**
+   * Класс для backdrop-слоя.
+   *
+   * Зачем:
+   * - На мобильных blur (backdrop-blur) часто выглядит уместно и подчёркивает модальность.
+   * - На desktop blur может быть лишним/“тяжёлым”, поэтому даём возможность отключать его
+   *   и оставить только затемнение.
+   *
+   * По умолчанию сохраняем прежнее поведение (с blur), чтобы не менять внешний вид
+   * существующих модалок в проекте.
+   */
+  backdropClassName?: string;
 }
 
-export function ModalPortal({ children, onClose }: ModalPortalProps) {
+export function ModalPortal({
+  children,
+  onClose,
+  backdropClassName = "bg-slate-900/40 backdrop-blur-sm",
+}: ModalPortalProps) {
   // Побочный эффект: блокируем скролл на время жизни компонента
   useEffect(() => {
     // Запоминаем текущее значение overflow, чтобы восстановить точно его,
@@ -51,7 +67,7 @@ export function ModalPortal({ children, onClose }: ModalPortalProps) {
   // createPortal(jsx, target) — рендерит jsx в target (document.body),
   // при этом компонент остаётся частью React-дерева для пропсов и контекста.
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
       {/*
         Backdrop (затемнённый фон):
         - absolute inset-0 растягивает на весь экран
@@ -59,7 +75,7 @@ export function ModalPortal({ children, onClose }: ModalPortalProps) {
         - onClick закрывает модалку при клике вне её содержимого
       */}
       <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        className={`absolute inset-0 ${backdropClassName}`}
         onClick={onClose}
       />
 

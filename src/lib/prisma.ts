@@ -26,14 +26,14 @@
  * Документация: https://www.prisma.io/docs/guides/other/troubleshooting-orm/help-articles/nextjs-prisma-client-dev-practices
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 // Статический импорт адаптера Turso и libSQL-клиента.
 // @prisma/adapter-libsql@5.x совместим с Prisma Client 5.x.
 // В этой версии:
 //   - класс называется PrismaLibSQL (все буквы SQL заглавные)
 //   - конструктор принимает готовый Client из @libsql/client (не конфиг напрямую)
-import { PrismaLibSQL } from "@prisma/adapter-libsql";
-import { createClient } from "@libsql/client";
+import { PrismaLibSQL } from '@prisma/adapter-libsql';
+import { createClient } from '@libsql/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Определяем режим работы
@@ -57,15 +57,15 @@ import { createClient } from "@libsql/client";
  *   - локально: всегда надёжный SQLite-файл prisma/dev.db;
  *   - на Vercel: Turso через адаптер PrismaLibSQL.
  */
-const dbUrl = process.env.DATABASE_URL ?? "";
-const isLocalSqlite = dbUrl.startsWith("file:");
-const isProd = process.env.NODE_ENV === "production";
+const dbUrl = process.env.DATABASE_URL ?? '';
+const isLocalSqlite = dbUrl.startsWith('file:');
+const isProd = process.env.NODE_ENV === 'production';
 
 // URL для Turso в продакшене: в приоритете TURSO_DATABASE_URL,
 // иначе DATABASE_URL c libsql:// (если кто-то настроил только его).
 const tursoUrl =
-  process.env.TURSO_DATABASE_URL ??
-  (dbUrl.startsWith("libsql://") ? dbUrl : undefined);
+    process.env.TURSO_DATABASE_URL ??
+    (dbUrl.startsWith('libsql://') ? dbUrl : undefined);
 
 // В продакшене считаем, что работаем с Turso, только если есть tursoUrl.
 // В режиме разработки (dev-сервер) Turso никогда не используется.
@@ -82,43 +82,43 @@ const isTurso = isProd && Boolean(tursoUrl);
  * обращении к модулю — только при первом создании синглтона.
  */
 function createPrismaClient(): PrismaClient {
-  if (isTurso) {
-    // ── Режим Turso (продакшен на Vercel) ──────────────────────────────────
+    if (isTurso) {
+        // ── Режим Turso (продакшен на Vercel) ──────────────────────────────────
+        //
+        // Шаг 1: создаём libSQL-клиент с реквизитами Turso.
+        // TURSO_DATABASE_URL — полный URL базы вида: libsql://your-db-name.turso.io
+        // TURSO_AUTH_TOKEN   — токен аутентификации из Turso (дашборд или CLI: turso db tokens create)
+        // Локально: задаются в .env для сида / тестирования Turso
+        // На Vercel: задаются в Settings → Environment Variables → Production
+        const tursoClient = createClient({
+            // tursoUrl гарантированно определён, раз isTurso === true
+            url: tursoUrl as string,
+            // Для приватных баз токен обязателен; для публичных Turso-баз
+            // клиент может работать и без него.
+            authToken: process.env.TURSO_AUTH_TOKEN,
+        });
+
+        // Шаг 2: оборачиваем libSQL-клиент в адаптер Prisma.
+        // PrismaLibSQL реализует интерфейс DriverAdapter — именно его ожидает PrismaClient.
+        const adapter = new PrismaLibSQL(tursoClient);
+
+        return new PrismaClient({
+            adapter,
+            // В продакшене логируем только ошибки — меньше шума в логах Vercel
+            log: ['error'],
+        });
+    }
+
+    // ── Режим SQLite (локальная разработка) ──────────────────────────────────
     //
-    // Шаг 1: создаём libSQL-клиент с реквизитами Turso.
-    // TURSO_DATABASE_URL — полный URL базы вида: libsql://your-db-name.turso.io
-    // TURSO_AUTH_TOKEN   — токен аутентификации из Turso (дашборд или CLI: turso db tokens create)
-    // Локально: задаются в .env для сида / тестирования Turso
-    // На Vercel: задаются в Settings → Environment Variables → Production
-    const tursoClient = createClient({
-      // tursoUrl гарантированно определён, раз isTurso === true
-      url: tursoUrl as string,
-      // Для приватных баз токен обязателен; для публичных Turso-баз
-      // клиент может работать и без него.
-      authToken: process.env.TURSO_AUTH_TOKEN,
-    });
-
-    // Шаг 2: оборачиваем libSQL-клиент в адаптер Prisma.
-    // PrismaLibSQL реализует интерфейс DriverAdapter — именно его ожидает PrismaClient.
-    const adapter = new PrismaLibSQL(tursoClient);
-
+    // Стандартный PrismaClient без адаптера.
+    // DATABASE_URL берётся из .env: file:./dev.db
     return new PrismaClient({
-      adapter,
-      // В продакшене логируем только ошибки — меньше шума в логах Vercel
-      log: ["error"],
+        log:
+            process.env.NODE_ENV === 'production'
+                ? ['error']
+                : ['query', 'error', 'warn'],
     });
-  }
-
-  // ── Режим SQLite (локальная разработка) ──────────────────────────────────
-  //
-  // Стандартный PrismaClient без адаптера.
-  // DATABASE_URL берётся из .env: file:./dev.db
-  return new PrismaClient({
-    log:
-      process.env.NODE_ENV === "production"
-        ? ["error"]
-        : ["query", "error", "warn"],
-  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -135,6 +135,6 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 // Сохраняем экземпляр в globalThis только вне продакшена.
 // В продакшене модуль загружается один раз и живёт всё время работы процесса.
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = prisma;
 }
