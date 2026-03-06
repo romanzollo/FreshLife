@@ -3,16 +3,16 @@
  * Используется когда Prisma-адаптер падает с ECONNRESET на Windows/Node 20.
  *
  * Использование:
- *   node scripts/seed-turso.js
+ *   npm run db:seed:turso
  */
 
-const { createClient } = require("@libsql/client");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
+import { createClient } from "@libsql/client";
+import * as fs from "fs";
+import * as path from "path";
+import * as crypto from "crypto";
 
 // ─── Загрузка .env ───────────────────────────────────────────────────────────
-function loadEnv() {
+function loadEnv(): void {
   const envPath = path.resolve(process.cwd(), ".env");
   if (!fs.existsSync(envPath)) return;
   for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
@@ -22,22 +22,39 @@ function loadEnv() {
     if (idx === -1) continue;
     const key = t.slice(0, idx).trim();
     let val = t.slice(idx + 1).trim();
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
       val = val.slice(1, -1);
     }
     if (!process.env[key]) process.env[key] = val;
   }
 }
 
-function cuid() {
-  // Простой ID совместимый с форматом CUID
+function cuid(): string {
   return "c" + crypto.randomBytes(11).toString("hex");
 }
 
-async function main() {
+interface Category {
+  slug: string;
+  name: string;
+}
+
+interface Product {
+  name: string;
+  description: string;
+  price: number;
+  cat: string;
+  stock: number;
+  unit: string;
+  img: string;
+}
+
+async function main(): Promise<void> {
   loadEnv();
 
-  const url = process.env.TURSO_DATABASE_URL;
+  const url       = process.env.TURSO_DATABASE_URL;
   const authToken = process.env.TURSO_AUTH_TOKEN;
 
   if (!url || !authToken) {
@@ -48,18 +65,18 @@ async function main() {
   console.log("Подключение к Turso:", url);
   const db = createClient({ url, authToken });
 
-  const cats = [
+  const cats: Category[] = [
     { slug: "fruits-vegetables", name: "Фрукты и овощи" },
     { slug: "dairy",             name: "Молочные продукты" },
     { slug: "meat-poultry",      name: "Мясо и птица" },
     { slug: "beverages",         name: "Напитки" },
     { slug: "bakery",            name: "Хлеб и выпечка" },
   ];
-  const catMap = {};
+  const catMap: Record<string, string> = {};
   for (const c of cats) { catMap[c.slug] = cuid(); }
 
   const now = new Date().toISOString();
-  const products = [
+  const products: Product[] = [
     { name: "Яблоки Голден",      description: "Свежие яблоки, 1 кг",            price: 129, cat: "fruits-vegetables", stock: 50,  unit: "кг",  img: "/products/apple.jpg" },
     { name: "Бананы",             description: "Спелые бананы, связка",           price: 89,  cat: "fruits-vegetables", stock: 80,  unit: "кг",  img: "/products/banana.jpg" },
     { name: "Молоко 3.2%",        description: "Молоко пастеризованное, 1 л",     price: 95,  cat: "dairy",             stock: 100, unit: "л",   img: "/products/milk.jpg" },
@@ -90,16 +107,16 @@ async function main() {
     { sql: "DELETE FROM Product",   args: [] },
     { sql: "DELETE FROM Category",  args: [] },
     ...cats.map((c) => ({
-      sql: "INSERT INTO Category (id, name, slug) VALUES (?, ?, ?)",
-      args: [catMap[c.slug], c.name, c.slug],
+      sql:  "INSERT INTO Category (id, name, slug) VALUES (?, ?, ?)",
+      args: [catMap[c.slug], c.name, c.slug] as string[],
     })),
     ...products.map((p) => ({
-      sql: "INSERT INTO Product (id, name, description, price, categoryId, inStock, unit, imageUrl, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      args: [cuid(), p.name, p.description, p.price, catMap[p.cat], p.stock, p.unit, p.img, now],
+      sql:  "INSERT INTO Product (id, name, description, price, categoryId, inStock, unit, imageUrl, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [cuid(), p.name, p.description, p.price, catMap[p.cat], p.stock, p.unit, p.img, now] as (string | number)[],
     })),
   ]);
 
   console.log(`Готово! Создано категорий: ${cats.length}, товаров: ${products.length}`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e: unknown) => { console.error(e); process.exit(1); });
